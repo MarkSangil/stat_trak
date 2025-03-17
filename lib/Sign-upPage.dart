@@ -1,8 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/gestures.dart'; // for clickable text spans
-import 'package:supabase_flutter/supabase_flutter.dart'; // import Supabase
-import 'map_page.dart';
-import 'login_page.dart';
+import 'package:flutter/gestures.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:stattrak/map_page.dart';
+import 'package:provider/provider.dart';
+import 'providers/SupabaseProvider.dart';
+import 'package:stattrak/login_page.dart';
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({Key? key}) : super(key: key);
@@ -13,31 +15,61 @@ class SignUpPage extends StatefulWidget {
 
 class _SignUpPageState extends State<SignUpPage> {
   final _formKey = GlobalKey<FormState>();
-
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
+  Future<void> _handleSignUp() async {
+    if (!_formKey.currentState!.validate()) return;
+
+    ScaffoldMessenger.of(context).showSnackBar(
+      const SnackBar(content: Text('Signing up...')),
+    );
+
+    try {
+      final supabaseProvider = Provider.of<SupabaseProvider>(context, listen: false);
+      final user = await supabaseProvider.signUpUser(
+        email: _emailController.text,
+        password: _passwordController.text,
+        name: _nameController.text,
+      );
+
+      if (user == null) {
+        // This means either sign-up failed, or there's no session (unconfirmed user)
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Please check your email to confirm your account.')),
+        );
+        return;
+      }
+
+      // If sign-up succeeds (and user is confirmed + session is valid)
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => MapPage()),
+      );
+    } catch (e) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text('Exception: $e')),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: const Color(0xFFFAFAFA), // Off-white background
+      backgroundColor: const Color(0xFFFAFAFA),
       body: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          // -- TOP BAR --
           Container(
             color: const Color(0xFF1E88E5),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // Left: "STATTRAK" with stroke + fill
                 Stack(
                   children: [
-                    // 1) Black stroke
                     Text(
                       'STATTRAK',
                       style: TextStyle(
@@ -49,7 +81,6 @@ class _SignUpPageState extends State<SignUpPage> {
                           ..color = Colors.black,
                       ),
                     ),
-                    // 2) Orange fill
                     Text(
                       'STATTRAK',
                       style: TextStyle(
@@ -60,7 +91,6 @@ class _SignUpPageState extends State<SignUpPage> {
                     ),
                   ],
                 ),
-                // Right: "Log In" button
                 SizedBox(
                   width: 104,
                   height: 42,
@@ -75,10 +105,10 @@ class _SignUpPageState extends State<SignUpPage> {
                     onPressed: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => LoginPage()),
+                        MaterialPageRoute(builder: (context) => const LoginPage()),
                       );
                     },
-                    child: Text(
+                    child: const Text(
                       'Log In',
                       style: TextStyle(
                         fontFamily: 'DMMono',
@@ -90,14 +120,12 @@ class _SignUpPageState extends State<SignUpPage> {
               ],
             ),
           ),
-          // -- MAIN CONTENT --
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // LEFT: Big heading
                   Expanded(
                     flex: 2,
                     child: Padding(
@@ -112,7 +140,6 @@ class _SignUpPageState extends State<SignUpPage> {
                       ),
                     ),
                   ),
-                  // RIGHT: Sign-up form
                   Expanded(
                     flex: 1,
                     child: ConstrainedBox(
@@ -122,27 +149,23 @@ class _SignUpPageState extends State<SignUpPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            // Name
                             _buildTextField(
                               controller: _nameController,
                               label: 'Name',
                             ),
                             const SizedBox(height: 16),
-                            // Email
                             _buildTextField(
                               controller: _emailController,
                               label: 'Email',
                               keyboardType: TextInputType.emailAddress,
                             ),
                             const SizedBox(height: 16),
-                            // Password
                             _buildTextField(
                               controller: _passwordController,
                               label: 'Password',
                               obscureText: true,
                             ),
                             const SizedBox(height: 16),
-                            // Confirm Password
                             _buildTextField(
                               controller: _confirmPasswordController,
                               label: 'Confirm Password',
@@ -158,7 +181,6 @@ class _SignUpPageState extends State<SignUpPage> {
                               },
                             ),
                             const SizedBox(height: 24),
-                            // SIGN UP BUTTON
                             SizedBox(
                               width: 212,
                               height: 48,
@@ -170,54 +192,8 @@ class _SignUpPageState extends State<SignUpPage> {
                                     borderRadius: BorderRadius.zero,
                                   ),
                                 ),
-                                onPressed: () async {
-                                  if (_formKey.currentState!.validate()) {
-                                    // Show signing up message
-                                    ScaffoldMessenger.of(context).showSnackBar(
-                                      const SnackBar(content: Text('Signing up...')),
-                                    );
-
-                                    try {
-                                      // 1) Sign up with Supabase Auth
-                                      final response = await Supabase
-                                          .instance.client.auth.signUp(
-                                        email: _emailController.text,
-                                        password: _passwordController.text,
-                                      );
-
-                                      // Check if the sign-up was unsuccessful
-                                      if (response.user == null) {
-                                        ScaffoldMessenger.of(context).showSnackBar(
-                                          const SnackBar(
-                                            content: Text('Sign-up error: Unable to create user.'),
-                                          ),
-                                        );
-                                        return;
-                                      }
-
-                                      // 2) Insert a row in user_profiles for the new user
-                                      final user = response.user;
-                                      final insertResponse = await Supabase
-                                          .instance.client
-                                          .from('user_profiles')
-                                          .insert({
-                                        'user_id': user!.id,
-                                        'name': _nameController.text,
-                                      });
-
-                                      // If no exception is thrown, assume success
-                                      Navigator.pushReplacement(
-                                        context,
-                                        MaterialPageRoute(builder: (context) => MapPage()),
-                                      );
-                                    } catch (e) {
-                                      ScaffoldMessenger.of(context).showSnackBar(
-                                        SnackBar(content: Text('Exception: $e')),
-                                      );
-                                    }
-                                  }
-                                }, // Ensure comma here
-                                child: Text(
+                                onPressed: _handleSignUp,
+                                child: const Text(
                                   'Sign Up',
                                   style: TextStyle(
                                     fontFamily: 'DMMono',
@@ -235,7 +211,6 @@ class _SignUpPageState extends State<SignUpPage> {
               ),
             ),
           ),
-          // -- FOOTER TEXT --
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 16),
             child: _buildFooterText(),
@@ -245,7 +220,6 @@ class _SignUpPageState extends State<SignUpPage> {
     );
   }
 
-  // Reusable text field builder
   Widget _buildTextField({
     required TextEditingController controller,
     required String label,
@@ -266,7 +240,7 @@ class _SignUpPageState extends State<SignUpPage> {
           },
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: TextStyle(
+        labelStyle: const TextStyle(
           fontFamily: 'DMMono',
           fontSize: 20,
         ),
@@ -281,13 +255,12 @@ class _SignUpPageState extends State<SignUpPage> {
     );
   }
 
-  // Footer with clickable Terms and Privacy
   Widget _buildFooterText() {
     return Center(
       child: RichText(
         textAlign: TextAlign.center,
         text: TextSpan(
-          style: TextStyle(
+          style: const TextStyle(
             fontFamily: 'Dangrek',
             fontSize: 14,
             color: Colors.black,
@@ -303,9 +276,6 @@ class _SignUpPageState extends State<SignUpPage> {
                 color: Colors.blue,
                 decoration: TextDecoration.underline,
               ),
-              recognizer: TapGestureRecognizer()..onTap = () {
-                // TODO: open Terms of Service link
-              },
             ),
             const TextSpan(text: '. View our '),
             TextSpan(
@@ -314,9 +284,6 @@ class _SignUpPageState extends State<SignUpPage> {
                 color: Colors.blue,
                 decoration: TextDecoration.underline,
               ),
-              recognizer: TapGestureRecognizer()..onTap = () {
-                // TODO: open Privacy Policy link
-              },
             ),
             const TextSpan(text: '.'),
           ],

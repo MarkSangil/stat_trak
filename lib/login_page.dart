@@ -1,6 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
-import 'map_page.dart';
+import 'package:stattrak/Sign-upPage.dart';
+import 'package:stattrak/map_page.dart';
+import 'package:provider/provider.dart';
+import 'providers/SupabaseProvider.dart';
+
 
 class LoginPage extends StatefulWidget {
   const LoginPage({Key? key}) : super(key: key);
@@ -17,34 +21,34 @@ class _LoginPageState extends State<LoginPage> {
 
   Future<void> _handleLogin() async {
     if (_formKey.currentState!.validate()) {
-      // Show quick "Logging in..." message
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Logging in...')),
       );
 
       try {
-        // 1) Call signInWithPassword
-        final response = await Supabase.instance.client.auth.signInWithPassword(
+        // 1. Access the provider
+        final supabaseProvider = Provider.of<SupabaseProvider>(context, listen: false);
+
+        // 2. Call the provider’s signInUser method
+        final user = await supabaseProvider.signInUser(
           email: _emailController.text,
           password: _passwordController.text,
         );
 
-        // 2) Check if login was successful
-        if (response.user == null) {
-          // If user is null, login failed
+        // 3. Check if user is null
+        if (user == null) {
           ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Login failed. Check your credentials.')),
+            const SnackBar(content: Text('Login failed. Check credentials or confirm email.')),
           );
           return;
         }
 
-        // 3) Success: Navigate to your home/map page
+        // 4. If login is successful, navigate to your main page
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => MapPage()),
         );
       } catch (e) {
-        // Catch any other errors
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text('Error: $e')),
         );
@@ -58,14 +62,12 @@ class _LoginPageState extends State<LoginPage> {
       backgroundColor: Colors.white,
       body: Column(
         children: [
-          // -- TOP BAR --
           Container(
             color: const Color(0xFF2F394D),
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
-                // Left: "STATTRAK"
                 Text(
                   'STATTRAK',
                   style: TextStyle(
@@ -74,7 +76,6 @@ class _LoginPageState extends State<LoginPage> {
                     color: const Color(0xFFFFA800),
                   ),
                 ),
-                // Right: "Sign Up" button
                 SizedBox(
                   width: 80,
                   height: 36,
@@ -87,11 +88,10 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ),
                     onPressed: () {
-                      // TODO: Navigate to your SignUpPage
-                      // Navigator.push(
-                      //   context,
-                      //   MaterialPageRoute(builder: (context) => SignUpPage()),
-                      // );
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(builder: (context) => SignUpPage()),
+                      );
                     },
                     child: Text(
                       'Sign Up',
@@ -106,14 +106,12 @@ class _LoginPageState extends State<LoginPage> {
             ),
           ),
 
-          // -- MAIN CONTENT --
           Expanded(
             child: SingleChildScrollView(
               padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 40),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  // LEFT: Big heading
                   Expanded(
                     flex: 2,
                     child: Padding(
@@ -128,7 +126,6 @@ class _LoginPageState extends State<LoginPage> {
                       ),
                     ),
                   ),
-                  // RIGHT: Login form
                   Expanded(
                     flex: 1,
                     child: ConstrainedBox(
@@ -138,7 +135,6 @@ class _LoginPageState extends State<LoginPage> {
                         child: Column(
                           crossAxisAlignment: CrossAxisAlignment.stretch,
                           children: [
-                            // Email
                             _buildTextField(
                               controller: _emailController,
                               label: 'Email',
@@ -146,7 +142,6 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                             const SizedBox(height: 16),
 
-                            // Password
                             _buildTextField(
                               controller: _passwordController,
                               label: 'Password',
@@ -154,7 +149,6 @@ class _LoginPageState extends State<LoginPage> {
                             ),
                             const SizedBox(height: 24),
 
-                            // LOG IN BUTTON
                             SizedBox(
                               width: 120,
                               height: 40,
@@ -166,7 +160,7 @@ class _LoginPageState extends State<LoginPage> {
                                     borderRadius: BorderRadius.zero,
                                   ),
                                 ),
-                                onPressed: _handleLogin, // Use the method
+                                onPressed: _handleLogin,
                                 child: Text(
                                   'Log In',
                                   style: TextStyle(
@@ -186,7 +180,6 @@ class _LoginPageState extends State<LoginPage> {
             ),
           ),
 
-          // -- FOOTER --
           Padding(
             padding: const EdgeInsets.symmetric(vertical: 16),
             child: Text(
@@ -204,7 +197,6 @@ class _LoginPageState extends State<LoginPage> {
     );
   }
 
-  // Helper for text fields
   Widget _buildTextField({
     required TextEditingController controller,
     required String label,
