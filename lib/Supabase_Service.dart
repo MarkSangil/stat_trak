@@ -20,4 +20,26 @@ class SupabaseService {
     client = Supabase.instance.client;
   }
 
+  /// Signs up a user and creates a profile in the 'user_profiles' table.
+  Future<User?> signUpUser({
+    required String email,
+    required String password,
+    required String name,
+  }) async {
+    final response = await client.auth.signUp(email: email, password: password);
+    if (response.user == null) {
+      return null;
+    }
+    final user = response.user!;
+
+    final insertResponse = await client.from('profiles').insert({
+      'user_id': user.id,
+      'name': name,
+    });
+
+    if (insertResponse.error != null) {
+      return null;
+    }
+    return user;
+  }
 }
