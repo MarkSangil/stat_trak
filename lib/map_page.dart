@@ -1,11 +1,15 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
 import 'package:flutter_map_cancellable_tile_provider/flutter_map_cancellable_tile_provider.dart';
 import 'map_page_functions.dart' as mf;
+import 'package:geolocator/geolocator.dart';
+import 'package:stattrak/weather_service.dart';
+import 'package:stattrak/widgets/appbar.dart';
 
-const String geoapifyApiKey = "YOUR_GEOAPIFY_API_KEY";
+final String geoapifyApiKey = dotenv.env['GEOAPIFY_API_KEY'] ?? "default_value_if_missing";
 
 class MapPage extends StatefulWidget {
   @override
@@ -17,15 +21,14 @@ class _MapPageState extends State<MapPage> {
   LatLng? marker2;
   List<mf.RouteInfo> routeAlternatives = [];
 
+  WeatherData? _weatherData;
   double zoomLevel = 13.0;
   MapController mapController = MapController();
 
-  // Controllers for search and marker details text fields.
   TextEditingController searchController = TextEditingController();
   TextEditingController marker1Controller = TextEditingController();
   TextEditingController marker2Controller = TextEditingController();
 
-  // Toggle for active/inactive state of marker details panel.
   bool showMarkerDetails = false;
 
   Future<void> fetchAllRoutes() async {
@@ -51,22 +54,63 @@ class _MapPageState extends State<MapPage> {
   }
 
   void addMarker(LatLng location) {
+    print("Tapped map at: $location");
     setState(() {
       if (marker1 == null) {
-        marker1 = mf.addMarker(
-          marker: marker1,
-          location: location,
-          updateTextField: (val) => marker1Controller.text = val,
-        );
+        marker1 = location;
+        marker1Controller.text = "${location.latitude}, ${location.longitude}";
+
+        WeatherService.fetchDetailedForecast(
+          lat: location.latitude,
+          lon: location.longitude,
+        ).then((forecast) {
+          showDetailedForecastDialog(forecast);
+        }).catchError((error) {
+          print("Error fetching detailed forecast: $error");
+        });
       } else if (marker2 == null) {
-        marker2 = mf.addMarker(
-          marker: marker2,
-          location: location,
-          updateTextField: (val) => marker2Controller.text = val,
-        );
+        marker2 = location;
+        marker2Controller.text = "${location.latitude}, ${location.longitude}";
         fetchAllRoutes();
+      } else {
+        print("Both markers are already set.");
       }
     });
+  }
+
+  void showDetailedForecastDialog(OneCallForecast forecast) {
+    showDialog(
+      context: context,
+      builder: (context) {
+        return AlertDialog(
+          title: Text("Detailed Forecast"),
+          content: SingleChildScrollView(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text("Current Temp: ${forecast.currentTemp} °C"),
+                Text("Current Desc: ${forecast.currentDescription}"),
+                SizedBox(height: 16),
+                Text("Daily Forecast:", style: TextStyle(fontWeight: FontWeight.bold)),
+                for (var day in forecast.dailyForecasts) ...[
+                  SizedBox(height: 8),
+                  Text("Day Temp: ${day.dayTemp}°C"),
+                  Text("Night Temp: ${day.nightTemp}°C"),
+                  Text("Description: ${day.description}"),
+                  Divider(),
+                ],
+              ],
+            ),
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(),
+              child: Text("Close"),
+            ),
+          ],
+        );
+      },
+    );
   }
 
   void removeMarker(int markerNumber) {
@@ -85,6 +129,59 @@ class _MapPageState extends State<MapPage> {
     setState(() {});
   }
 
+  Future<void> _onGetMyLocationPressed() async {
+    final userLocation = await mf.getCurrentLocation();
+    if (userLocation != null) {
+      mapController.move(userLocation, zoomLevel);
+
+      setState(() {
+        if (marker1 == null) {
+          marker1 = userLocation;
+          marker1Controller.text = "${userLocation.latitude}, ${userLocation.longitude}";
+        } else if (marker2 == null) {
+          marker2 = userLocation;
+          marker2Controller.text = "${userLocation.latitude}, ${userLocation.longitude}";
+        } else {
+          print("Both markers are already set.");
+        }
+      });
+      WeatherService.fetchWeatherByLatLon(
+        lat: userLocation.latitude,
+        lon: userLocation.longitude,
+      ).then((weatherData) {
+        print("WeatherData fetched: ${weatherData.temperature}°C, ${weatherData.description}");
+
+        showDialog(
+          context: context,
+          builder: (context) {
+            return AlertDialog(
+              title: Text("Weather at Current Location"),
+              content: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text("Temperature: ${weatherData.temperature} °C"),
+                  Text("Description: ${weatherData.description}"),
+                ],
+              ),
+              actions: [
+                TextButton(
+                  onPressed: () => Navigator.of(context).pop(),
+                  child: Text("Close"),
+                ),
+              ],
+            );
+          },
+        );
+      }).catchError((error) {
+        print("Error fetching weather: $error");
+      });
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Location not available or permission denied.")),
+      );
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final routeColors = {
@@ -94,7 +191,8 @@ class _MapPageState extends State<MapPage> {
     };
 
     return Scaffold(
-      appBar: AppBar(title: Text("Map with Multiple Routes")),
+      appBar: MyCustomAppBar(
+      ),
       bottomSheet: routeAlternatives.isNotEmpty
           ? Container(
         color: Colors.white,
@@ -135,7 +233,6 @@ class _MapPageState extends State<MapPage> {
           : null,
       body: Stack(
         children: [
-          /// 1) Flutter Map
           FlutterMap(
             mapController: mapController,
             options: MapOptions(
@@ -164,11 +261,15 @@ class _MapPageState extends State<MapPage> {
                   if (marker1 != null)
                     Marker(
                       point: marker1!,
+                      width: 40,
+                      height: 40,
                       child: Icon(Icons.location_pin, color: Colors.red, size: 40),
                     ),
                   if (marker2 != null)
                     Marker(
                       point: marker2!,
+                      width: 40,
+                      height: 40,
                       child: Icon(Icons.location_pin, color: Colors.blue, size: 40),
                     ),
                 ],
@@ -176,7 +277,6 @@ class _MapPageState extends State<MapPage> {
             ],
           ),
 
-          /// 2) Collapsible Marker Details Panel
           Positioned(
             top: 70,
             left: 15,
@@ -194,7 +294,6 @@ class _MapPageState extends State<MapPage> {
                     padding: EdgeInsets.all(8.0),
                     child: Column(
                       children: [
-                        // Title row with expand/collapse icon
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -203,11 +302,7 @@ class _MapPageState extends State<MapPage> {
                               style: TextStyle(fontWeight: FontWeight.bold),
                             ),
                             IconButton(
-                              icon: Icon(
-                                showMarkerDetails
-                                    ? Icons.expand_less
-                                    : Icons.expand_more,
-                              ),
+                              icon: Icon(showMarkerDetails ? Icons.expand_less : Icons.expand_more),
                               onPressed: () {
                                 setState(() {
                                   showMarkerDetails = !showMarkerDetails;
@@ -216,23 +311,18 @@ class _MapPageState extends State<MapPage> {
                             ),
                           ],
                         ),
-                        // Show marker details only if expanded
                         if (showMarkerDetails) ...[
                           SizedBox(height: 10),
                           TextField(
                             controller: marker1Controller,
                             readOnly: true,
-                            decoration: InputDecoration(
-                              labelText: "Marker 1 (Lat, Lng)",
-                            ),
+                            decoration: InputDecoration(labelText: "Marker 1 (Lat, Lng)"),
                           ),
                           SizedBox(height: 10),
                           TextField(
                             controller: marker2Controller,
                             readOnly: true,
-                            decoration: InputDecoration(
-                              labelText: "Marker 2 (Lat, Lng)",
-                            ),
+                            decoration: InputDecoration(labelText: "Marker 2 (Lat, Lng)"),
                           ),
                           SizedBox(height: 10),
                           Row(
@@ -259,19 +349,15 @@ class _MapPageState extends State<MapPage> {
             ),
           ),
 
-          /// 3) Search Bar (on top so suggestions appear above other widgets)
           Positioned(
             top: 10,
             left: 15,
             right: 15,
             child: Card(
               elevation: 4,
-              shape: RoundedRectangleBorder(
-                borderRadius: BorderRadius.circular(8),
-              ),
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
               child: Padding(
-                padding:
-                const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
+                padding: const EdgeInsets.symmetric(horizontal: 8.0, vertical: 4.0),
                 child: TypeAheadField<Map<String, dynamic>>(
                   textFieldConfiguration: TextFieldConfiguration(
                     controller: searchController,
@@ -294,12 +380,18 @@ class _MapPageState extends State<MapPage> {
             ),
           ),
 
-          /// 4) Zoom Controls
           Positioned(
             bottom: 100,
             right: 20,
             child: Column(
+              mainAxisSize: MainAxisSize.min,
               children: [
+                FloatingActionButton(
+                  heroTag: "currentLocation",
+                  onPressed: _onGetMyLocationPressed,
+                  child: Icon(Icons.my_location),
+                ),
+                SizedBox(height: 10),
                 FloatingActionButton(
                   heroTag: "zoomIn",
                   mini: true,
@@ -326,34 +418,51 @@ class _MapPageState extends State<MapPage> {
               ],
             ),
           ),
+
+          /// 5) Weather Info Overlay (OPTIONAL)
+          if (_weatherData != null)
+            Positioned(
+              top: 140,
+              left: 15,
+              right: 15,
+              child: Card(
+                color: Colors.white.withOpacity(0.9),
+                elevation: 4,
+                child: Padding(
+                  padding: EdgeInsets.all(8.0),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text("Weather at Marker 1", style: TextStyle(fontWeight: FontWeight.bold)),
+                          SizedBox(height: 4),
+                          Text("Temp: ${_weatherData!.temperature} °C"),
+                          Text("Desc: ${_weatherData!.description}"),
+                        ],
+                      ),
+                      IconButton(
+                        icon: Icon(Icons.close),
+                        onPressed: () {
+                          setState(() {
+                            _weatherData = null;
+                          });
+                        },
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
         ],
       ),
-
-      /// Directions FAB appears if both markers exist.
       floatingActionButton: (marker1 != null && marker2 != null)
           ? FloatingActionButton(
         child: Icon(Icons.directions),
         onPressed: fetchAllRoutes,
       )
           : null,
-    );
-  }
-}
-
-/// Legend widget remains the same
-class _LegendEntry extends StatelessWidget {
-  final Color color;
-  final String text;
-  const _LegendEntry({required this.color, required this.text});
-
-  @override
-  Widget build(BuildContext context) {
-    return Row(
-      children: [
-        Container(width: 14, height: 14, color: color),
-        SizedBox(width: 6),
-        Text(text),
-      ],
     );
   }
 }

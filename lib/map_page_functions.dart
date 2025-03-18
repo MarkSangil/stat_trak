@@ -1,8 +1,9 @@
-// map_page_functions.dart
 import 'dart:convert';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
+import 'package:geolocator/geolocator.dart';
+
 
 /// A model to hold route data. You can also keep this in map_page.dart if preferred.
 class RouteInfo {
@@ -200,4 +201,28 @@ void fitMapToRoutes({
   }
 
   mapController.move(LatLng(centerLat, centerLng), newZoom);
+}
+
+Future<LatLng?> getCurrentLocation() async {
+  bool serviceEnabled = await Geolocator.isLocationServiceEnabled();
+  if (!serviceEnabled) {
+    return null;
+  }
+
+  LocationPermission permission = await Geolocator.checkPermission();
+  if (permission == LocationPermission.denied) {
+    permission = await Geolocator.requestPermission();
+    if (permission == LocationPermission.denied) {
+      return null;
+    }
+  }
+
+  if (permission == LocationPermission.deniedForever) {
+    return null;
+  }
+
+  Position position = await Geolocator.getCurrentPosition(
+    desiredAccuracy: LocationAccuracy.high,
+  );
+  return LatLng(position.latitude, position.longitude);
 }
