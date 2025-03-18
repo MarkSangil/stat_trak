@@ -1,10 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:stattrak/Sign-upPage.dart';
-import 'package:stattrak/map_page.dart';
 import 'package:provider/provider.dart';
 import 'providers/SupabaseProvider.dart';
-
+import 'package:stattrak/DashboardPage.dart';
 
 class LoginPage extends StatefulWidget {
   const LoginPage({Key? key}) : super(key: key);
@@ -43,10 +42,9 @@ class _LoginPageState extends State<LoginPage> {
           return;
         }
 
-        // 4. If login is successful, navigate to your main page
         Navigator.pushReplacement(
           context,
-          MaterialPageRoute(builder: (context) => MapPage()),
+          MaterialPageRoute(builder: (context) => DashboardPage()),
         );
       } catch (e) {
         ScaffoldMessenger.of(context).showSnackBar(

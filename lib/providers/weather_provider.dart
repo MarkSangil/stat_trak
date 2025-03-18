@@ -1,6 +1,6 @@
 import 'package:flutter/foundation.dart';
 import 'package:latlong2/latlong.dart';
-import '../services/weather_service.dart';
+import '../weather_service.dart';
 
 class WeatherProvider with ChangeNotifier {
   WeatherData? _weatherData;

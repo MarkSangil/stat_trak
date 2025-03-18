@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
 import 'providers/SupabaseProvider.dart';
+import 'providers/weather_provider.dart';
 import 'package:stattrak/Sign-upPage.dart';
 
 Future<void> main() async {
@@ -12,8 +13,15 @@ Future<void> main() async {
   await supabaseProvider.init();
 
   runApp(
-    ChangeNotifierProvider.value(
-      value: supabaseProvider,
+    MultiProvider(
+      providers: [
+        ChangeNotifierProvider<SupabaseProvider>.value(
+          value: supabaseProvider,
+        ),
+        ChangeNotifierProvider<WeatherProvider>(
+          create: (_) => WeatherProvider(),
+        ),
+      ],
       child: const MyApp(),
     ),
   );
@@ -21,6 +29,7 @@ Future<void> main() async {
 
 class MyApp extends StatelessWidget {
   const MyApp({super.key});
+
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
