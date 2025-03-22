@@ -1,9 +1,17 @@
 import 'package:flutter/material.dart';
+import 'package:stattrak/map_page.dart';
 
 class MyCustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   final double height;
+  final VoidCallback onNotificationPressed;
+  final VoidCallback onGroupPressed;
 
-  const MyCustomAppBar({Key? key, this.height = kToolbarHeight}) : super(key: key);
+  const MyCustomAppBar({
+    Key? key,
+    this.height = kToolbarHeight,
+    required this.onNotificationPressed,
+    required this.onGroupPressed,
+  }) : super(key: key);
 
   @override
   Size get preferredSize => Size.fromHeight(height);
@@ -11,64 +19,73 @@ class MyCustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: Color(0xFF1E6091), // Blue background color
+      color: const Color(0xFF1E6091), // Blue background color
       child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8.0),
           child: Row(
             children: [
-              // Left side icons - using black color for icons
+              // Left side icons
               IconButton(
                 icon: Image.asset(
                   "assets/icons/Home.png",
-                  color: Colors.lightBlue[200], // Light blue color for home icon
+                  color: Colors.lightBlue[200],
                 ),
                 onPressed: () {},
               ),
               IconButton(
                 icon: Image.asset(
                   "assets/icons/Map.png",
-                  color: Colors.black, // Black color for map icon
+                  color: Colors.black,
                 ),
-                onPressed: () {},
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => MapPage()),
+                  );
+                },
               ),
               IconButton(
                 icon: Image.asset(
                   "assets/icons/Events.png",
-                  color: Colors.black, // Black color for events icon
+                  color: Colors.black,
                 ),
                 onPressed: () {},
               ),
 
-              // Spacer to push the right icons to the end
-              Spacer(),
+              const Spacer(),
 
               // Right side icons
               IconButton(
                 icon: Image.asset(
                   "assets/icons/Friends.png",
-                  color: Colors.black, // Black color
+                  color: Colors.black,
                 ),
                 onPressed: () {},
               ),
+
+              // GROUP ICON => calls onGroupPressed
               IconButton(
                 icon: Image.asset(
                   "assets/icons/Group.png",
-                  color: Colors.white, // White color
+                  color: Colors.white,
                 ),
-                onPressed: () {},
+                onPressed: onGroupPressed,
               ),
+
+              // NOTIFICATION ICON => calls onNotificationPressed
               IconButton(
                 icon: Image.asset(
                   "assets/icons/Notification.png",
-                  color: Colors.white, // White color
+                  color: Colors.white,
                 ),
-                onPressed: () {},
+                onPressed: onNotificationPressed,
               ),
+
               IconButton(
                 icon: Image.asset(
                   "assets/icons/Profile.png",
-                  color: Colors.white, // White color
+                  color: Colors.white,
                 ),
                 onPressed: () {},
               ),
