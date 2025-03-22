@@ -1,16 +1,24 @@
 import 'package:flutter/material.dart';
 import 'package:stattrak/map_page.dart';
+import 'package:stattrak/ProfilePage.dart';
 
 class MyCustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   final double height;
   final VoidCallback onNotificationPressed;
   final VoidCallback onGroupPressed;
 
+  final String? avatarUrl; // The user’s avatar
+  final double? lat;
+  final double? long;
+
   const MyCustomAppBar({
     Key? key,
     this.height = kToolbarHeight,
     required this.onNotificationPressed,
     required this.onGroupPressed,
+    this.lat,
+    this.long,
+    this.avatarUrl,
   }) : super(key: key);
 
   @override
@@ -19,7 +27,7 @@ class MyCustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: const Color(0xFF1E6091), // Blue background color
+      color: const Color(0xFF1E6091),
       child: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: 8.0),
@@ -39,8 +47,7 @@ class MyCustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                   color: Colors.black,
                 ),
                 onPressed: () {
-                  Navigator.push(
-                    context,
+                  Navigator.push(context,
                     MaterialPageRoute(builder: (context) => MapPage()),
                   );
                 },
@@ -52,7 +59,6 @@ class MyCustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                 ),
                 onPressed: () {},
               ),
-
               const Spacer(),
 
               // Right side icons
@@ -64,7 +70,6 @@ class MyCustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                 onPressed: () {},
               ),
 
-              // GROUP ICON => calls onGroupPressed
               IconButton(
                 icon: Image.asset(
                   "assets/icons/Group.png",
@@ -73,7 +78,6 @@ class MyCustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                 onPressed: onGroupPressed,
               ),
 
-              // NOTIFICATION ICON => calls onNotificationPressed
               IconButton(
                 icon: Image.asset(
                   "assets/icons/Notification.png",
@@ -81,13 +85,42 @@ class MyCustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                 ),
                 onPressed: onNotificationPressed,
               ),
-
-              IconButton(
+              (avatarUrl != null && avatarUrl!.isNotEmpty)
+                  ? GestureDetector(
+                onTap: () {
+                  // Navigate to ProfilePage
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ProfilePage(
+                        initialLat: lat,
+                        initialLong: long,
+                      ),
+                    ),
+                  );
+                },
+                child: CircleAvatar(
+                  radius: 16,
+                  backgroundImage: NetworkImage(avatarUrl!),
+                  backgroundColor: Colors.grey[200],
+                ),
+              )
+                  : IconButton(
                 icon: Image.asset(
                   "assets/icons/Profile.png",
                   color: Colors.white,
                 ),
-                onPressed: () {},
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => ProfilePage(
+                        initialLat: lat,
+                        initialLong: long,
+                      ),
+                    ),
+                  );
+                },
               ),
             ],
           ),

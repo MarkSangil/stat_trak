@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:provider/provider.dart';
+import 'package:stattrak/providers/post_provider.dart';
 import 'providers/SupabaseProvider.dart';
 import 'providers/weather_provider.dart';
 import 'package:stattrak/Sign-upPage.dart';
@@ -20,6 +21,9 @@ Future<void> main() async {
         ),
         ChangeNotifierProvider<WeatherProvider>(
           create: (_) => WeatherProvider(),
+        ),
+        ChangeNotifierProvider(
+          create: (_) => PostProvider(),
         ),
       ],
       child: const MyApp(),
