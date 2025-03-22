@@ -192,6 +192,14 @@ class _MapPageState extends State<MapPage> {
 
     return Scaffold(
       appBar: MyCustomAppBar(
+        onNotificationPressed: () {
+          debugPrint('Notification icon pressed!');
+        },
+        onGroupPressed: () {
+          // TODO: What do you want to do when the group icon is pressed?
+          // For example:
+          debugPrint('Group icon pressed!');
+        },
       ),
       bottomSheet: routeAlternatives.isNotEmpty
           ? Container(

@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/gestures.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:stattrak/map_page.dart';
 import 'package:provider/provider.dart';
@@ -28,7 +27,8 @@ class _SignUpPageState extends State<SignUpPage> {
     );
 
     try {
-      final supabaseProvider = Provider.of<SupabaseProvider>(context, listen: false);
+      final supabaseProvider =
+      Provider.of<SupabaseProvider>(context, listen: false);
       final user = await supabaseProvider.signUpUser(
         email: _emailController.text,
         password: _passwordController.text,
@@ -36,14 +36,17 @@ class _SignUpPageState extends State<SignUpPage> {
       );
 
       if (user == null) {
-        // This means either sign-up failed, or there's no session (unconfirmed user)
+        // Either sign-up failed, or user needs to confirm email
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Please check your email to confirm your account.')),
+          const SnackBar(
+            content: Text(
+                'Please check your email to confirm your account or try again.'),
+          ),
         );
         return;
       }
 
-      // If sign-up succeeds (and user is confirmed + session is valid)
+      // Sign-up successful and profile created
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => MapPage()),
@@ -64,7 +67,8 @@ class _SignUpPageState extends State<SignUpPage> {
         children: [
           Container(
             color: const Color(0xFF1E88E5),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            padding:
+            const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
             child: Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
@@ -105,7 +109,8 @@ class _SignUpPageState extends State<SignUpPage> {
                     onPressed: () {
                       Navigator.push(
                         context,
-                        MaterialPageRoute(builder: (context) => const LoginPage()),
+                        MaterialPageRoute(
+                            builder: (context) => const LoginPage()),
                       );
                     },
                     child: const Text(
@@ -122,7 +127,8 @@ class _SignUpPageState extends State<SignUpPage> {
           ),
           Expanded(
             child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
+              padding:
+              const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
               child: Row(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
