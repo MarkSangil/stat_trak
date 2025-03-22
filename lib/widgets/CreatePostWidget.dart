@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:stattrak/models/Post.dart';
+import 'package:stattrak/providers/post_provider.dart';
+
+
+
 
 class CreatePostWidget extends StatefulWidget {
   const CreatePostWidget({Key? key}) : super(key: key);
@@ -45,9 +51,7 @@ class _CreatePostWidgetState extends State<CreatePostWidget> {
   Future<void> _createPost() async {
     final supabase = Supabase.instance.client;
     final user = supabase.auth.currentUser;
-    if (user == null) {
-      return;
-    }
+    if (user == null) return;
 
     final content = _postController.text.trim();
     if (content.isEmpty) return;
@@ -55,10 +59,29 @@ class _CreatePostWidgetState extends State<CreatePostWidget> {
     setState(() => _isSubmitting = true);
 
     try {
-      await supabase.from('posts').insert({
+      final response = await supabase.from('posts').insert({
         'user_id': user.id,
         'content': content,
-      });
+      }).select();
+
+      // Grab inserted post data
+      final insertedPost = response.first;
+
+      // Add to local provider
+      final postProvider = context.read<PostProvider>();
+      postProvider.addPost(
+        Post(
+          username: user.userMetadata?['full_name'] ?? 'Unknown',
+          date: DateTime.now(),
+          location: 'Bulacan', // or fetch user location if available
+          title: content,
+          distance: 0.0,
+          elevation: 0.0,
+          imageUrls: [],
+          likes: 0,
+        ),
+      );
+
       _postController.clear();
     } catch (error) {
       debugPrint('Error creating post: $error');
@@ -67,13 +90,24 @@ class _CreatePostWidgetState extends State<CreatePostWidget> {
     }
   }
 
-  /// Uploads an image to Supabase Storage, then inserts a new post record with the image URL
+  /// Uploads an image to Supabase Storage, then inserts a new post record
+  /// with BOTH the user-entered text and the image URL.
   Future<void> _pickAndUploadImage() async {
     final supabase = Supabase.instance.client;
     final user = supabase.auth.currentUser;
     if (user == null) return;
+
+    // CHANGED: Grab the text from the controller
+    final content = _postController.text.trim();
+    if (content.isEmpty) {
+      // If you want to allow empty text, remove this check
+      debugPrint("No text entered!");
+      return;
+    }
+
     final pickedFile = await ImagePicker().pickImage(source: ImageSource.gallery);
     if (pickedFile == null) return;
+
     setState(() => _isSubmitting = true);
 
     try {
@@ -92,11 +126,28 @@ class _CreatePostWidgetState extends State<CreatePostWidget> {
           .from('post-images')
           .getPublicUrl(fileName);
 
-      await supabase.from('posts').insert({
+      final response = await supabase.from('posts').insert({
         'user_id': user.id,
-        'content': 'Check out my new image!',
-        'photos': imageUrl,
-      });
+        'content': content,
+        'photos': [imageUrl],
+      }).select();
+
+      final postProvider = context.read<PostProvider>();
+      postProvider.addPost(
+        Post(
+          username: user.userMetadata?['full_name'] ?? 'Unknown',
+          date: DateTime.now(),
+          location: 'Bulacan',
+          title: content,
+          distance: 0.0,
+          elevation: 0.0,
+          imageUrls: [imageUrl],
+          likes: 0,
+        ),
+      );
+
+      _postController.clear();
+
     } catch (e) {
       debugPrint('Upload error: $e');
     } finally {
