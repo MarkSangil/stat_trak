@@ -25,12 +25,27 @@ class _GroupPageState extends State<GroupPage> {
   bool _checkedAccess = false;
   final userId = Supabase.instance.client.auth.currentUser?.id;
   final TextEditingController _postController = TextEditingController();
-
+  String? _avatarUrl;
 
   @override
   void initState() {
     super.initState();
     _checkMembership();
+    _loadUserProfile();
+  }
+
+  Future<void> _loadUserProfile() async {
+    final result = await Supabase.instance.client
+        .from('profiles')
+        .select('avatar_url')
+        .eq('id', userId!)
+        .maybeSingle();
+
+    if (result != null && mounted) {
+      setState(() {
+        _avatarUrl = result['avatar_url'];
+      });
+    }
   }
 
   Future<void> _createPost() async {
@@ -112,7 +127,6 @@ class _GroupPageState extends State<GroupPage> {
     setState(() {});
   }
 
-
   void _toggleMembership() async {
     if (!_isMember) return;
 
@@ -162,7 +176,7 @@ class _GroupPageState extends State<GroupPage> {
       appBar: MyCustomAppBar(
         onNotificationPressed: () {},
         onGroupPressed: () {},
-        avatarUrl: null,
+        avatarUrl: _avatarUrl,
       ),
       body: Row(
         crossAxisAlignment: CrossAxisAlignment.start,

@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:stattrak/DashboardPage.dart';
 import 'package:stattrak/map_page.dart';
 import 'package:stattrak/ProfilePage.dart';
+import 'package:stattrak/widgets/friends_sidebar.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 class MyCustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   final double height;
@@ -67,11 +69,25 @@ class MyCustomAppBar extends StatelessWidget implements PreferredSizeWidget {
 
               // Right side icons
               IconButton(
-                icon: Image.asset(
-                  "assets/icons/Friends.png",
-                  color: Colors.black,
-                ),
-                onPressed: () {},
+                icon: Image.asset("assets/icons/Friends.png", color: Colors.black),
+                onPressed: () {
+                  showDialog(
+                    context: context,
+                    builder: (_) => Dialog(
+                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      child: SizedBox(
+                        width: 400,  // set fixed width
+                        height: 500, // or use MediaQuery
+                        child: FriendsModal(
+                          currentUserId: Supabase.instance.client.auth.currentUser!.id,
+                          lat: lat,
+                          long: long,
+                        ),
+                      ),
+                    ),
+                  );
+
+                },
               ),
 
               IconButton(
