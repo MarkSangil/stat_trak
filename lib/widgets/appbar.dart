@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:stattrak/DashboardPage.dart';
 import 'package:stattrak/map_page.dart';
 import 'package:stattrak/ProfilePage.dart';
 
@@ -39,7 +40,10 @@ class MyCustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                   "assets/icons/Home.png",
                   color: Colors.lightBlue[200],
                 ),
-                onPressed: () {},
+                onPressed: () {
+                  Navigator.push(context,
+                  MaterialPageRoute(builder: (context) => DashboardPage()),
+                );},
               ),
               IconButton(
                 icon: Image.asset(
