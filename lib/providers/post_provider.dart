@@ -34,7 +34,7 @@ class PostProvider with ChangeNotifier {
     try {
       final response = await supabase
           .from('posts')
-          .select()
+          .select('*, profiles(username)')
           .order('created_at', ascending: false)
           .range(offset, offset + _pageSize - 1);
 
@@ -45,10 +45,12 @@ class PostProvider with ChangeNotifier {
       }
 
       for (final item in data) {
+        final profile = item['profiles'];
+
         _posts.add(Post(
-          username: "John Doe",
+          username: profile?['username'] ?? 'Unknown',
           date: DateTime.parse(item['created_at']),
-          location: "Bulacan",
+          location: '', // optional: if you store location in profiles or posts
           title: item['content'] ?? '',
           distance: 0.0,
           elevation: 0.0,

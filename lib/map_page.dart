@@ -4,10 +4,11 @@ import 'package:latlong2/latlong.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
 import 'package:flutter_map_cancellable_tile_provider/flutter_map_cancellable_tile_provider.dart';
-import 'map_page_functions.dart' as mf;
+import 'models/map_page_functions.dart' as mf;
 import 'package:geolocator/geolocator.dart';
 import 'package:stattrak/weather_service.dart';
 import 'package:stattrak/widgets/appbar.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 final String geoapifyApiKey = dotenv.env['GEOAPIFY_API_KEY'] ?? "default_value_if_missing";
 
@@ -30,6 +31,24 @@ class _MapPageState extends State<MapPage> {
   TextEditingController marker2Controller = TextEditingController();
 
   bool showMarkerDetails = false;
+  String? _avatarUrl;
+  final userId = Supabase.instance.client.auth.currentUser?.id;
+
+  Future<void> _loadUserAvatar() async {
+    if (userId == null) return;
+
+    final response = await Supabase.instance.client
+        .from('profiles')
+        .select('avatar_url')
+        .eq('id', userId!)
+        .maybeSingle();
+
+    if (response != null && mounted) {
+      setState(() {
+        _avatarUrl = response['avatar_url'];
+      });
+    }
+  }
 
   Future<void> fetchAllRoutes() async {
     await mf.fetchAllRoutes(
@@ -145,41 +164,17 @@ class _MapPageState extends State<MapPage> {
           print("Both markers are already set.");
         }
       });
-      WeatherService.fetchWeatherByLatLon(
-        lat: userLocation.latitude,
-        lon: userLocation.longitude,
-      ).then((weatherData) {
-        print("WeatherData fetched: ${weatherData.temperature}°C, ${weatherData.description}");
-
-        showDialog(
-          context: context,
-          builder: (context) {
-            return AlertDialog(
-              title: Text("Weather at Current Location"),
-              content: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  Text("Temperature: ${weatherData.temperature} °C"),
-                  Text("Description: ${weatherData.description}"),
-                ],
-              ),
-              actions: [
-                TextButton(
-                  onPressed: () => Navigator.of(context).pop(),
-                  child: Text("Close"),
-                ),
-              ],
-            );
-          },
-        );
-      }).catchError((error) {
-        print("Error fetching weather: $error");
-      });
     } else {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text("Location not available or permission denied.")),
       );
     }
+  }
+
+  @override
+  void initState() {
+    super.initState();
+    _loadUserAvatar();
   }
 
   @override
@@ -196,10 +191,9 @@ class _MapPageState extends State<MapPage> {
           debugPrint('Notification icon pressed!');
         },
         onGroupPressed: () {
-          // TODO: What do you want to do when the group icon is pressed?
-          // For example:
           debugPrint('Group icon pressed!');
         },
+        avatarUrl: _avatarUrl,
       ),
       bottomSheet: routeAlternatives.isNotEmpty
           ? Container(
@@ -218,10 +212,8 @@ class _MapPageState extends State<MapPage> {
                 itemCount: routeAlternatives.length,
                 itemBuilder: (context, index) {
                   final route = routeAlternatives[index];
-                  final distanceKm =
-                  (route.distanceMeters / 1000).toStringAsFixed(2);
-                  final timeMin =
-                  (route.timeSeconds / 60).toStringAsFixed(1);
+                  final distanceKm = (route.distanceMeters / 1000).toStringAsFixed(2);
+                  final timeMin = (route.timeSeconds / 60).toStringAsFixed(1);
                   return ListTile(
                     leading: Container(
                       width: 12,
@@ -285,6 +277,7 @@ class _MapPageState extends State<MapPage> {
             ],
           ),
 
+          // Marker Info Panel
           Positioned(
             top: 70,
             left: 15,
@@ -305,10 +298,7 @@ class _MapPageState extends State<MapPage> {
                         Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
-                            Text(
-                              "Marker Details",
-                              style: TextStyle(fontWeight: FontWeight.bold),
-                            ),
+                            Text("Marker Details", style: TextStyle(fontWeight: FontWeight.bold)),
                             IconButton(
                               icon: Icon(showMarkerDetails ? Icons.expand_less : Icons.expand_more),
                               onPressed: () {
@@ -332,19 +322,21 @@ class _MapPageState extends State<MapPage> {
                             readOnly: true,
                             decoration: InputDecoration(labelText: "Marker 2 (Lat, Lng)"),
                           ),
-                          SizedBox(height: 10),
+                          SizedBox(height: 8),
                           Row(
                             mainAxisAlignment: MainAxisAlignment.end,
                             children: [
                               if (marker1 != null)
-                                IconButton(
-                                  icon: Icon(Icons.delete, color: Colors.red),
+                                TextButton.icon(
                                   onPressed: () => removeMarker(1),
+                                  icon: Icon(Icons.delete, color: Colors.red),
+                                  label: Text("Delete Marker 1", style: TextStyle(color: Colors.red)),
                                 ),
                               if (marker2 != null)
-                                IconButton(
-                                  icon: Icon(Icons.delete, color: Colors.red),
+                                TextButton.icon(
                                   onPressed: () => removeMarker(2),
+                                  icon: Icon(Icons.delete, color: Colors.red),
+                                  label: Text("Delete Marker 2", style: TextStyle(color: Colors.red)),
                                 ),
                             ],
                           ),
@@ -357,8 +349,9 @@ class _MapPageState extends State<MapPage> {
             ),
           ),
 
+          // Location Search Bar
           Positioned(
-            top: 10,
+            top: 8,
             left: 15,
             right: 15,
             child: Card(
@@ -382,95 +375,62 @@ class _MapPageState extends State<MapPage> {
                     LatLng location = suggestion['latlng'];
                     moveToLocation(location);
                     searchController.text = suggestion['name'];
+                    addMarker(location);
                   },
                 ),
               ),
             ),
           ),
-
-          Positioned(
-            bottom: 100,
-            right: 20,
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                FloatingActionButton(
-                  heroTag: "currentLocation",
-                  onPressed: _onGetMyLocationPressed,
-                  child: Icon(Icons.my_location),
-                ),
-                SizedBox(height: 10),
-                FloatingActionButton(
-                  heroTag: "zoomIn",
-                  mini: true,
-                  child: Icon(Icons.zoom_in),
-                  onPressed: () {
-                    setState(() {
-                      zoomLevel += 1;
-                      mapController.move(mapController.center, zoomLevel);
-                    });
-                  },
-                ),
-                SizedBox(height: 10),
-                FloatingActionButton(
-                  heroTag: "zoomOut",
-                  mini: true,
-                  child: Icon(Icons.zoom_out),
-                  onPressed: () {
-                    setState(() {
-                      zoomLevel -= 1;
-                      mapController.move(mapController.center, zoomLevel);
-                    });
-                  },
-                ),
-              ],
-            ),
-          ),
-
-          /// 5) Weather Info Overlay (OPTIONAL)
-          if (_weatherData != null)
-            Positioned(
-              top: 140,
-              left: 15,
-              right: 15,
-              child: Card(
-                color: Colors.white.withOpacity(0.9),
-                elevation: 4,
-                child: Padding(
-                  padding: EdgeInsets.all(8.0),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: [
-                      Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text("Weather at Marker 1", style: TextStyle(fontWeight: FontWeight.bold)),
-                          SizedBox(height: 4),
-                          Text("Temp: ${_weatherData!.temperature} °C"),
-                          Text("Desc: ${_weatherData!.description}"),
-                        ],
-                      ),
-                      IconButton(
-                        icon: Icon(Icons.close),
-                        onPressed: () {
-                          setState(() {
-                            _weatherData = null;
-                          });
-                        },
-                      ),
-                    ],
-                  ),
-                ),
-              ),
-            ),
         ],
       ),
-      floatingActionButton: (marker1 != null && marker2 != null)
-          ? FloatingActionButton(
-        child: Icon(Icons.directions),
-        onPressed: fetchAllRoutes,
-      )
-          : null,
+      floatingActionButton: Padding(
+        padding: EdgeInsets.only(
+          bottom: routeAlternatives.isNotEmpty ? 160 : 20,
+          right: 10,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            FloatingActionButton(
+              heroTag: "currentLocation",
+              onPressed: _onGetMyLocationPressed,
+              child: Icon(Icons.my_location),
+            ),
+            SizedBox(height: 10),
+            FloatingActionButton(
+              heroTag: "zoomIn",
+              mini: true,
+              child: Icon(Icons.zoom_in),
+              onPressed: () {
+                setState(() {
+                  zoomLevel += 1;
+                  mapController.move(mapController.center, zoomLevel);
+                });
+              },
+            ),
+            SizedBox(height: 10),
+            FloatingActionButton(
+              heroTag: "zoomOut",
+              mini: true,
+              child: Icon(Icons.zoom_out),
+              onPressed: () {
+                setState(() {
+                  zoomLevel -= 1;
+                  mapController.move(mapController.center, zoomLevel);
+                });
+              },
+            ),
+            if (marker1 != null && marker2 != null) ...[
+              SizedBox(height: 10),
+              FloatingActionButton(
+                heroTag: "routeBtn",
+                onPressed: fetchAllRoutes,
+                child: Icon(Icons.directions),
+              ),
+            ]
+          ],
+        ),
+      ),
     );
   }
 }
