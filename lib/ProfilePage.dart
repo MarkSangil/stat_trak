@@ -9,7 +9,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-
 class ProfilePage extends StatefulWidget {
   final String? userId;
   final double? initialLat;
@@ -32,7 +31,6 @@ class _ProfilePageState extends State<ProfilePage> {
   final _avatarUrlController = TextEditingController();
   final _bioController = TextEditingController();
 
-  // New controllers for YouTube links
   final _youtubeLink1Controller = TextEditingController();
   final _youtubeLink2Controller = TextEditingController();
   final _youtubeLink3Controller = TextEditingController();
@@ -43,7 +41,6 @@ class _ProfilePageState extends State<ProfilePage> {
   double? _longitude;
   List<Map<String, dynamic>> _userPosts = [];
 
-  // List to store featured photos
   List<String> _featuredPhotos = [];
   final int _maxFeaturedPhotos = 4;
 
@@ -95,13 +92,10 @@ class _ProfilePageState extends State<ProfilePage> {
       _bioController.text = row['bio'] ?? '';
       _latitude = row['lat'];
       _longitude = row['long'];
-
-      // Load YouTube links
       _youtubeLink1Controller.text = row['youtube_link1'] ?? '';
-      _youtubeLink2Controller.text = row['youtube_link2'] ?? '';
+      _youtubeLink2Controller.text = row['youtubeLink2'] ?? '';
       _youtubeLink3Controller.text = row['youtube_link3'] ?? '';
 
-      // Load featured photos
       final featuredPhotosData = row['featured_photos'];
       if (featuredPhotosData != null && featuredPhotosData is List) {
         _featuredPhotos = List<String>.from(featuredPhotosData);
@@ -121,7 +115,6 @@ class _ProfilePageState extends State<ProfilePage> {
     if (targetUserId == null) return;
 
     try {
-      // Fetch posts with post_likes data
       final response = await supabase
           .from('posts')
           .select('''
@@ -135,9 +128,6 @@ class _ProfilePageState extends State<ProfilePage> {
       setState(() {
         _userPosts = List<Map<String, dynamic>>.from(response);
       });
-
-      // Debug information
-      print('Found ${_userPosts.length} posts for user $targetUserId');
     } catch (e) {
       debugPrint('Error fetching user posts: $e');
     }
@@ -153,7 +143,6 @@ class _ProfilePageState extends State<ProfilePage> {
         'post_id': postId,
       });
 
-      // Refresh posts to update the likes
       await _fetchUserPosts();
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -173,7 +162,6 @@ class _ProfilePageState extends State<ProfilePage> {
           .eq('user_id', currentUser.id)
           .eq('post_id', postId);
 
-      // Refresh posts to update the likes
       await _fetchUserPosts();
     } catch (e) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -202,6 +190,24 @@ class _ProfilePageState extends State<ProfilePage> {
     } catch (e) {
       debugPrint('Error checking friendship status: $e');
     }
+  }
+
+  Widget _buildVideoCard(String url) {
+    return Card(
+      margin: const EdgeInsets.only(bottom: 10),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(12),
+      ),
+      elevation: 2,
+      child: Padding(
+        padding: const EdgeInsets.all(8.0),
+        child: SizedBox(
+          width: 400,
+          height: 225,
+          child: YouTubeVideoPlayer(url: url),
+        ),
+      ),
+    );
   }
 
   Future<void> _sendFriendRequest() async {
@@ -250,16 +256,15 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
     );
 
-    // If result is not null, update the profile data
     if (result != null && mounted) {
       setState(() {
         _avatarUrlController.text = result['avatar_url'] ?? _avatarUrlController.text;
         _usernameController.text = result['username'] ?? _usernameController.text;
         _fullNameController.text = result['full_name'] ?? _fullNameController.text;
         _bioController.text = result['bio'] ?? _bioController.text;
-        _youtubeLink1Controller.text = result['youtube_link1'] ?? _youtubeLink1Controller.text;
-        _youtubeLink2Controller.text = result['youtube_link2'] ?? _youtubeLink2Controller.text;
-        _youtubeLink3Controller.text = result['youtube_link3'] ?? _youtubeLink3Controller.text;
+        _youtubeLink1Controller.text = result['youtubeLink1'] ?? _youtubeLink1Controller.text;
+        _youtubeLink2Controller.text = result['youtubeLink2'] ?? _youtubeLink2Controller.text;
+        _youtubeLink3Controller.text = result['youtubeLink3'] ?? _youtubeLink3Controller.text;
 
         if (result['featured_photos'] != null) {
           _featuredPhotos = List<String>.from(result['featured_photos']);
@@ -281,7 +286,6 @@ class _ProfilePageState extends State<ProfilePage> {
                 : _featuredPhotos.length,
             itemBuilder: (context, index) {
               if (index == _featuredPhotos.length && _featuredPhotos.length < _maxFeaturedPhotos) {
-                // Add new photo tile
                 return InkWell(
                   onTap: _pickAndUploadFeaturedPhoto,
                   child: Container(
@@ -297,7 +301,6 @@ class _ProfilePageState extends State<ProfilePage> {
                   ),
                 );
               } else {
-                // Existing photo tile
                 return Stack(
                   children: [
                     Container(
@@ -446,11 +449,9 @@ class _ProfilePageState extends State<ProfilePage> {
         'bio': _bioController.text,
         'lat': _latitude,
         'long': _longitude,
-        // Add YouTube links
         'youtube_link1': _youtubeLink1Controller.text,
         'youtube_link2': _youtubeLink2Controller.text,
         'youtube_link3': _youtubeLink3Controller.text,
-        // Add featured photos
         'featured_photos': _featuredPhotos,
         'updated_at': DateTime.now().toIso8601String(),
       };
@@ -470,7 +471,6 @@ class _ProfilePageState extends State<ProfilePage> {
     }
   }
 
-  // Function to open YouTube links
   Future<void> _launchYouTubeUrl(String url) async {
     if (url.isEmpty) return;
 
@@ -491,6 +491,7 @@ class _ProfilePageState extends State<ProfilePage> {
   @override
   Widget build(BuildContext context) {
     final currentUser = Supabase.instance.client.auth.currentUser;
+    final screenWidth = MediaQuery.of(context).size.width;
 
     return Scaffold(
       appBar: MyCustomAppBar(
@@ -502,255 +503,275 @@ class _ProfilePageState extends State<ProfilePage> {
       ),
       body: _isLoading
           ? const Center(child: CircularProgressIndicator())
-          : Padding(
-        padding: const EdgeInsets.all(16.0),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            // LEFT SIDEBAR
-            SizedBox(
-              width: 250,
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.only(bottom: 24),
+          : SingleChildScrollView(
+        // Wrap with SingleChildScrollView
+        child: Padding(
+          padding: const EdgeInsets.all(16.0),
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              if (screenWidth > 800) {
+                // Desktop/Tablet Layout
+                return Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    SizedBox(
+                      width: 250,
+                      child: _buildProfileInfo(),
+                    ),
+                    const SizedBox(width: 24),
+                    Expanded(child: _buildPosts()),
+                    const SizedBox(width: 16),
+                    SizedBox(
+                      width: 250,
+                      child: _buildWeather(),
+                    ),
+                  ],
+                );
+              } else {
+                // Mobile Layout
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.center, // Center the content
+                  children: [
+                    _buildProfileInfo(),
+                    const SizedBox(height: 24),
+                    _buildPosts(),
+                    const SizedBox(height: 24),
+                    _buildWeather(),
+                  ],
+                );
+              }
+            },
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildProfileInfo() {
+    return  Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        CircleAvatar(
+          radius: 50,
+          backgroundImage: NetworkImage(_avatarUrlController.text),
+        ),
+        const SizedBox(height: 12),
+        Text(
+          _fullNameController.text,
+          style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+        ),
+        const SizedBox(height: 8),
+        if (!_isOwnProfile)
+          ElevatedButton.icon(
+            icon: const Icon(Icons.person),
+            label: Text(
+              _friendshipStatus == 'accepted'
+                  ? 'Friends'
+                  : _friendshipStatus == 'pending'
+                  ? 'Request Sent'
+                  : 'Add Friend',
+            ),
+            onPressed: _friendshipStatus == 'none' ? _sendFriendRequest : null,
+          ),
+        if (_isOwnProfile) ...[
+          ElevatedButton.icon(
+            icon: const Icon(Icons.edit),
+            label: const Text('Edit Profile'),
+            onPressed: _showEditProfileDialog,
+          ),
+          const SizedBox(height: 8),
+          ElevatedButton.icon(
+            icon: const Icon(Icons.logout),
+            label: const Text('Logout'),
+            onPressed: _logout,
+          ),
+        ],
+        const SizedBox(height: 16),
+        Text(_bioController.text),
+        if (_featuredPhotos.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          const Text(
+            'Featured Photos',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          SizedBox(
+            height: 120,
+            child: ListView.builder(
+              scrollDirection: Axis.horizontal,
+              itemCount: _featuredPhotos.length,
+              itemBuilder: (context, index) {
+                return Container(
+                  width: 100,
+                  margin: const EdgeInsets.only(right: 8),
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(8),
+                    image: DecorationImage(
+                      image: NetworkImage(_featuredPhotos[index]),
+                      fit: BoxFit.cover,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        ],
+        if (_youtubeLink1Controller.text.isNotEmpty ||
+            _youtubeLink2Controller.text.isNotEmpty ||
+            _youtubeLink3Controller.text.isNotEmpty) ...[
+          const SizedBox(height: 16),
+          const Text(
+            'YouTube Links',
+            style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          ),
+          const SizedBox(height: 8),
+          if (_youtubeLink1Controller.text.isNotEmpty)
+            _buildVideoCard(_youtubeLink1Controller.text),
+          if (_youtubeLink2Controller.text.isNotEmpty)
+            _buildVideoCard(_youtubeLink2Controller.text),
+          if (_youtubeLink3Controller.text.isNotEmpty)
+            _buildVideoCard(_youtubeLink3Controller.text),
+        ],
+      ],
+    );
+  }
+
+  Widget _buildPosts() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Posts', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+        const SizedBox(height: 8),
+        if (_userPosts.isEmpty)
+          const Text('No posts to show.'),
+        ListView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: _userPosts.length,
+          itemBuilder: (context, index) {
+            // ... (Your post item builder)
+            final post = _userPosts[index];
+            final dynamic photosData = post['photos'];
+            final List<dynamic> photos =
+            photosData != null ? (photosData is List ? photosData : []) : [];
+            final String content = post['content'] ?? 'No description';
+            final DateTime createdAt = DateTime.parse(post['created_at']);
+            final String postId = post['id'];
+
+            final List<dynamic> likes = post['post_likes'] ?? [];
+            final bool hasLiked = Supabase.instance.client.auth.currentUser !=
+                null
+                ? likes.any((like) =>
+            like['user_id'] ==
+                Supabase.instance.client.auth.currentUser!.id)
+                : false;
+
+            return Card(
+              margin: const EdgeInsets.only(bottom: 12),
+              child: Padding(
+                padding: const EdgeInsets.all(12),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    CircleAvatar(
-                      radius: 50,
-                      backgroundImage: NetworkImage(_avatarUrlController.text),
-                    ),
-                    const SizedBox(height: 12),
                     Text(
-                      _fullNameController.text,
-                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                      content,
+                      style: const TextStyle(fontWeight: FontWeight.w500),
                     ),
                     const SizedBox(height: 8),
-                    if (!_isOwnProfile)
-                      ElevatedButton.icon(
-                        icon: const Icon(Icons.person),
-                        label: Text(
-                          _friendshipStatus == 'accepted'
-                              ? 'Friends'
-                              : _friendshipStatus == 'pending'
-                              ? 'Request Sent'
-                              : 'Add Friend',
+                    Text(
+                      '${createdAt.toLocal()}'.split('.')[0],
+                      style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    ),
+                    if (photos.isNotEmpty)
+                      Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 8),
+                          GridView.builder(
+                            shrinkWrap: true,
+                            physics: const NeverScrollableScrollPhysics(),
+                            itemCount: photos.length,
+                            gridDelegate:
+                            const SliverGridDelegateWithFixedCrossAxisCount(
+                              crossAxisCount: 2,
+                              mainAxisSpacing: 8,
+                              crossAxisSpacing: 8,
+                              childAspectRatio: 1.2,
+                            ),
+                            itemBuilder: (context, index) {
+                              return Image.network(photos[index],
+                                  fit: BoxFit.cover);
+                            },
+                          ),
+                        ],
+                      ),
+                    const SizedBox(height: 8),
+                    Row(
+                      children: [
+                        IconButton(
+                          icon: Icon(
+                            hasLiked ? Icons.favorite : Icons.favorite_border,
+                            color: _isOwnProfile ? Colors.grey : Colors.red,
+                          ),
+                          onPressed:
+                          (Supabase.instance.client.auth.currentUser != null &&
+                              !_isOwnProfile)
+                              ? () {
+                            if (hasLiked) {
+                              _unlikePost(postId);
+                            } else {
+                              _likePost(postId);
+                            }
+                          }
+                              : null,
                         ),
-                        onPressed: _friendshipStatus == 'none' ? _sendFriendRequest : null,
-                      ),
-                    if (_isOwnProfile) ...[
-                      ElevatedButton.icon(
-                        icon: const Icon(Icons.edit),
-                        label: const Text('Edit Profile'),
-                        onPressed: _showEditProfileDialog,
-                      ),
-                      const SizedBox(height: 8),
-                      ElevatedButton.icon(
-                        icon: const Icon(Icons.logout),
-                        label: const Text('Logout'),
-                        onPressed: _logout,
-                      ),
-                    ],
-                    const SizedBox(height: 16),
-                    Text(_bioController.text),
-
-                    if (_featuredPhotos.isNotEmpty) ...[
-                      const SizedBox(height: 16),
-                      const Text(
-                        'Featured Photos',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 8),
-                      SizedBox(
-                        height: 120,
-                        child: ListView.builder(
-                          scrollDirection: Axis.horizontal,
-                          itemCount: _featuredPhotos.length,
-                          itemBuilder: (context, index) {
-                            return Container(
-                              width: 100,
-                              margin: const EdgeInsets.only(right: 8),
-                              decoration: BoxDecoration(
-                                borderRadius: BorderRadius.circular(8),
-                                image: DecorationImage(
-                                  image: NetworkImage(_featuredPhotos[index]),
-                                  fit: BoxFit.cover,
-                                ),
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                    ],
-
-                    if (_youtubeLink1Controller.text.isNotEmpty ||
-                        _youtubeLink2Controller.text.isNotEmpty ||
-                        _youtubeLink3Controller.text.isNotEmpty) ...[
-                      const SizedBox(height: 16),
-                      const Text(
-                        'YouTube Links',
-                        style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-                      ),
-                      const SizedBox(height: 8),
-                      if (_youtubeLink1Controller.text.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: YouTubeVideoPlayer(url: _youtubeLink1Controller.text),
-                        ),
-                      if (_youtubeLink2Controller.text.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: YouTubeVideoPlayer(url: _youtubeLink2Controller.text),
-                        ),
-                      if (_youtubeLink3Controller.text.isNotEmpty)
-                        Padding(
-                          padding: const EdgeInsets.only(bottom: 10),
-                          child: YouTubeVideoPlayer(url: _youtubeLink3Controller.text),
-                        ),
-                    ],
+                        Text("${likes.length} likes")
+                      ],
+                    ),
                   ],
                 ),
               ),
-            ),
-            const SizedBox(width: 24),
-
-            // POSTS SECTION
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Posts', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                  const SizedBox(height: 8),
-                  if (_userPosts.isEmpty)
-                    const Text('No posts to show.')
-                  else
-                    Expanded(
-                      child: ListView.builder(
-                        itemCount: _userPosts.length,
-                        itemBuilder: (context, index) {
-                          final post = _userPosts[index];
-                          final dynamic photosData = post['photos'];
-                          final List<dynamic> photos = photosData != null ?
-                          (photosData is List ? photosData : []) : [];
-                          final String content = post['content'] ?? 'No description';
-                          final DateTime createdAt = DateTime.parse(post['created_at']);
-                          final String postId = post['id'];
-
-                          // Get likes data
-                          final List<dynamic> likes = post['post_likes'] ?? [];
-                          final bool hasLiked = currentUser != null ?
-                          likes.any((like) => like['user_id'] == currentUser.id) : false;
-
-                          return Card(
-                            margin: const EdgeInsets.only(bottom: 12),
-                            child: Padding(
-                              padding: const EdgeInsets.all(12),
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    content,
-                                    style: const TextStyle(fontWeight: FontWeight.w500),
-                                  ),
-                                  const SizedBox(height: 8),
-                                  Text(
-                                    '${createdAt.toLocal()}'.split('.')[0],
-                                    style: const TextStyle(fontSize: 12, color: Colors.grey),
-                                  ),
-                                  if (photos.isNotEmpty)
-                                    Column(
-                                      crossAxisAlignment: CrossAxisAlignment.start,
-                                      children: [
-                                        const SizedBox(height: 8),
-                                        GridView.builder(
-                                          shrinkWrap: true,
-                                          physics: const NeverScrollableScrollPhysics(),
-                                          itemCount: photos.length,
-                                          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                                            crossAxisCount: 2,
-                                            mainAxisSpacing: 8,
-                                            crossAxisSpacing: 8,
-                                            childAspectRatio: 1.2,
-                                          ),
-                                          itemBuilder: (context, index) {
-                                            return Image.network(photos[index], fit: BoxFit.cover);
-                                          },
-                                        ),
-                                      ],
-                                    ),
-                                  const SizedBox(height: 8),
-                                  // Like button and count
-                                  Row(
-                                    children: [
-                                      IconButton(
-                                        icon: Icon(
-                                          hasLiked ? Icons.favorite : Icons.favorite_border,
-                                          color: _isOwnProfile ? Colors.grey : Colors.red,
-                                        ),
-                                        onPressed: (currentUser != null && !_isOwnProfile) ? () {
-                                          if (hasLiked) {
-                                            _unlikePost(postId);
-                                          } else {
-                                            _likePost(postId);
-                                          }
-                                        } : null,
-                                      ),
-                                      Text("${likes.length} likes")
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                ],
-              ),
-            ),
-
-            const SizedBox(width: 16),
-
-            // WEATHER
-            SizedBox(
-              width: 250,
-              child: Consumer<WeatherProvider>(
-                builder: (context, provider, _) {
-                  if (provider.isLoading) {
-                    return const Center(child: CircularProgressIndicator());
-                  } else if (provider.error != null) {
-                    return Text('Error: ${provider.error}');
-                  } else if (provider.weatherData != null) {
-                    final weather = provider.weatherData!;
-                    return Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        const Text("Weather for Today", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
-                        const SizedBox(height: 8),
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
-                            borderRadius: BorderRadius.circular(12),
-                            color: Colors.blue.shade50,
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.cloud, size: 32),
-                              const SizedBox(width: 8),
-                              Text('${weather.temperature.toStringAsFixed(1)}°C'),
-                            ],
-                          ),
-                        ),
-                      ],
-                    );
-                  } else {
-                    return const Text('Weather data unavailable');
-                  }
-                },
-              ),
-            ),
-          ],
+            );
+          },
         ),
-      ),
+      ],
+    );
+  }
+
+  Widget _buildWeather() {
+    return Consumer<WeatherProvider>(
+      builder: (context, provider, _) {
+        if (provider.isLoading) {
+          return const Center(child: CircularProgressIndicator());
+        } else if (provider.error != null) {
+          return Text('Error: ${provider.error}');
+        } else if (provider.weatherData != null) {
+          final weather = provider.weatherData!;
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text("Weather for Today", style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold)),
+              const SizedBox(height: 8),
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(
+                  borderRadius: BorderRadius.circular(12),
+                  color: Colors.blue.shade50,
+                ),
+                child: Row(
+                  children: [
+                    const Icon(Icons.cloud, size: 32),
+                    const SizedBox(width: 8),
+                    Text('${weather.temperature.toStringAsFixed(1)}°C'),
+                  ],
+                ),
+              ),
+            ],
+          );
+        } else {
+          return const Text('Weather data unavailable');
+        }
+      },
     );
   }
 }

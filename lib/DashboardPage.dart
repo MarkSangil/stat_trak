@@ -25,7 +25,6 @@ class _DashboardPageState extends State<DashboardPage> {
   double? _longitude;
   String? _avatarUrl;
 
-
   @override
   void initState() {
     super.initState();
@@ -91,6 +90,7 @@ class _DashboardPageState extends State<DashboardPage> {
   @override
   Widget build(BuildContext context) {
     final provider = context.watch<WeatherProvider>();
+    final screenWidth = MediaQuery.of(context).size.width;
 
     return Scaffold(
       appBar: MyCustomAppBar(
@@ -110,122 +110,164 @@ class _DashboardPageState extends State<DashboardPage> {
           });
         },
       ),
-      body: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          // ========== LEFT COLUMN (Main Feed) ==========
-          Expanded(
-            child: Container(
-              color: Colors.white,
-              child: SingleChildScrollView(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const CreatePostWidget(),
-                    const SizedBox(height: 16),
-                    Consumer<PostProvider>(
-                      builder: (context, postProvider, _) {
-                        final posts = postProvider.posts;
-
-                        if (postProvider.isLoading && posts.isEmpty) {
-                          return const Center(child: CircularProgressIndicator());
-                        }
-
-                        return Column(
-                          children: [
-                            ...posts.map((post) => PostWidget(post: post)).toList(),
-
-                            if (postProvider.hasMore && !postProvider.isLoading)
-                              ElevatedButton(
-                                onPressed: () {
-                                  postProvider.loadMorePosts();
-                                },
-                                child: const Text("Load More"),
-                              ),
-
-                            if (postProvider.isLoading && posts.isNotEmpty)
-                              const Padding(
-                                padding: EdgeInsets.all(8.0),
-                                child: CircularProgressIndicator(),
-                              ),
-                          ],
-                        );
-                      },
-                    ),
-                  ],
-                ),
-              ),
-            ),
-          ),
-
-          // ========== RIGHT COLUMN (Weather + Sidebars) ==========
-          Container(
-            width: 300,
-            color: Colors.grey.shade100,
-            child: Stack(
+      body:
+      // Use a LayoutBuilder to determine the screen width.
+      LayoutBuilder(
+        builder: (context, constraints) {
+          if (screenWidth > 900) {
+            // For larger screens (desktops, tablets in landscape), use a side-by-side layout.
+            return Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                // Weather logic, sidebars, etc.
-                if (provider.isLoading)
-                  const Positioned(
-                    top: 20,
-                    left: 20,
-                    child: CircularProgressIndicator(),
-                  )
-                else if (provider.error != null)
-                  Positioned(
-                    top: 20,
-                    left: 20,
-                    child: Container(
-                      width: 250,
-                      padding: const EdgeInsets.all(16),
-                      color: Colors.white,
-                      child: Text('Error: ${provider.error}'),
-                    ),
-                  )
-                else if (provider.weatherData != null)
-                    Positioned(
-                      top: 20,
-                      left: 20,
-                      child: Container(
-                        width: 250,
-                        padding: const EdgeInsets.all(16),
-                        color: Colors.white,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
+                // Left column (posts) takes up most of the width.
+                Expanded(
+                  child: _buildPostFeed(),
+                ),
+                // Right column (weather and sidebars) has a fixed width.
+                SizedBox(
+                  width: 300,
+                  child: _buildSidebarAndWeather(constraints), // Pass constraints
+                ),
+              ],
+            );
+          } else {
+            // For smaller screens (phones, tablets in portrait), stack the columns.
+            return Column(
+              children: [
+                // Posts feed takes up the full width.
+                Expanded(
+                  child: _buildPostFeed(),
+                ),
+                //  Weather and sidebars.
+                SizedBox(
+                  width: double.infinity, // Make it take the full width.
+                  child: _buildSidebarAndWeather(constraints), // Pass constraints
+                ),
+              ],
+            );
+          }
+        },
+      ),
+    );
+  }
+  // Extract the Post Feed Widget
+  Widget _buildPostFeed() {
+    return Container(
+      color: Colors.white,
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(16.0),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const CreatePostWidget(),
+            const SizedBox(height: 16),
+            Consumer<PostProvider>(
+              builder: (context, postProvider, _) {
+                final posts = postProvider.posts;
+
+                if (postProvider.isLoading && posts.isEmpty) {
+                  return const Center(child: CircularProgressIndicator());
+                }
+
+                return Column(
+                  children: [
+                    ...posts.map((post) => PostWidget(post: post)).toList(),
+                    if (postProvider.hasMore && !postProvider.isLoading)
+                      ElevatedButton(
+                        onPressed: () {
+                          postProvider.loadMorePosts();
+                        },
+                        child: const Text("Load More"),
+                      ),
+                    if (postProvider.isLoading && posts.isNotEmpty)
+                      const Padding(
+                        padding: EdgeInsets.all(8.0),
+                        child: CircularProgressIndicator(),
+                      ),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Extract the Sidebar and Weather Widget
+  Widget _buildSidebarAndWeather(BoxConstraints constraints) { // Add BoxConstraints
+    final provider = context.watch<WeatherProvider>();
+    final isSmallScreen = constraints.maxWidth < 900; // Use the breakpoint
+
+    return Container(
+      color: Colors.grey.shade100,
+      // Constrain the height of the Stack.
+      child: ConstrainedBox(
+        constraints: BoxConstraints(
+          minHeight: isSmallScreen ? 0.0 : constraints.maxHeight, // 0 on small, max on large
+          maxHeight: constraints.maxHeight,
+        ),
+        child: Stack(
+          children: [
+            // Weather logic, sidebars, etc.
+            if (provider.isLoading)
+              const Positioned(
+                top: 20,
+                left: 20,
+                child: CircularProgressIndicator(),
+              )
+            else if (provider.error != null)
+              Positioned(
+                top: 20,
+                left: 20,
+                child: Container(
+                  width: 250,
+                  padding: const EdgeInsets.all(16),
+                  color: Colors.white,
+                  child: Text('Error: ${provider.error}'),
+                ),
+              )
+            else if (provider.weatherData != null)
+                Positioned(
+                  top: 20,
+                  left: 20,
+                  child: Container(
+                    width: 250,
+                    padding: const EdgeInsets.all(16),
+                    color: Colors.white,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        const Text(
+                          'Weather for Today',
+                          style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                        ),
+                        const SizedBox(height: 8),
+                        Row(
                           children: [
-                            const Text(
-                              'Weather for Today',
-                              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
-                            ),
-                            const SizedBox(height: 8),
-                            Row(
-                              children: [
-                                const Icon(Icons.wb_sunny),
-                                const SizedBox(width: 8),
-                                Text(
-                                  '${provider.weatherData!.temperature.toStringAsFixed(1)} °C',
-                                  style: const TextStyle(fontSize: 24),
-                                ),
-                              ],
+                            const Icon(Icons.wb_sunny),
+                            const SizedBox(width: 8),
+                            Text(
+                              '${provider.weatherData!.temperature.toStringAsFixed(1)} °C',
+                              style: const TextStyle(fontSize: 24),
                             ),
                           ],
                         ),
-                      ),
+                      ],
                     ),
-
-                if (_activeSidebar == SidebarType.notification)
-                  Positioned.fill(
-                    child: NotificationSidebar(),
                   ),
-                if (_activeSidebar == SidebarType.group)
-                  Positioned.fill(
-                    child: GroupSidebar(),
-                  ),
-              ],
-            ),
-          ),
-        ],
+                ),
+            // Ensure the sidebars have a size.  Positioned.fill ensures they expand to fill available space
+            if (_activeSidebar == SidebarType.notification)
+              const Positioned.fill(
+                child: NotificationSidebar(),
+              ),
+            if (_activeSidebar == SidebarType.group)
+              const Positioned.fill(
+                child: GroupSidebar(),
+              ),
+          ],
+        ),
       ),
     );
   }
