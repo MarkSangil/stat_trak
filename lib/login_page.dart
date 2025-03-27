@@ -14,7 +14,6 @@ class LoginPage extends StatefulWidget {
 
 class _LoginPageState extends State<LoginPage> {
   final _formKey = GlobalKey<FormState>();
-
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
 
@@ -25,16 +24,13 @@ class _LoginPageState extends State<LoginPage> {
       );
 
       try {
-        // 1. Access the provider
-        final supabaseProvider = Provider.of<SupabaseProvider>(context, listen: false);
-
-        // 2. Call the provider’s signInUser method
+        final supabaseProvider =
+        Provider.of<SupabaseProvider>(context, listen: false);
         final user = await supabaseProvider.signInUser(
           email: _emailController.text,
           password: _passwordController.text,
         );
 
-        // 3. Check if user is null
         if (user == null) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(content: Text('Login failed. Check credentials or confirm email.')),
@@ -58,135 +54,68 @@ class _LoginPageState extends State<LoginPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: Colors.white,
-      body: Column(
-        children: [
-          Container(
-            color: const Color(0xFF2F394D),
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  'STATTRAK',
-                  style: TextStyle(
-                    fontFamily: 'RubikMonoOne',
-                    fontSize: 34,
-                    color: const Color(0xFFFFA800),
-                  ),
+      body: LayoutBuilder(
+        builder: (context, constraints) {
+          final screenWidth = constraints.maxWidth;
+          final isLargeScreen = screenWidth > 800;
+
+          return Column(
+            children: [
+              _buildHeader(context, isLargeScreen),
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
+                  child: isLargeScreen
+                      ? _buildLargeScreenContent(context)
+                      : _buildSmallScreenContent(context),
                 ),
-                SizedBox(
-                  width: 80,
-                  height: 36,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFFFA800),
-                      foregroundColor: Colors.black,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.zero,
-                      ),
-                    ),
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(builder: (context) => SignUpPage()),
-                      );
-                    },
-                    child: Text(
-                      'Sign Up',
-                      style: TextStyle(
-                        fontFamily: 'RubikMonoOne',
-                        fontSize: 14,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-
-          Expanded(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.symmetric(horizontal: 40, vertical: 40),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    flex: 2,
-                    child: Padding(
-                      padding: const EdgeInsets.only(right: 40),
-                      child: Text(
-                        'A WEB-BASED INFORMATION FOR CYCLISTS\nTHAT IT’S EASY AND FREE',
-                        style: TextStyle(
-                          fontFamily: 'RubikMonoOne',
-                          fontSize: 34,
-                          color: Colors.black,
-                        ),
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    flex: 1,
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 350),
-                      child: Form(
-                        key: _formKey,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            _buildTextField(
-                              controller: _emailController,
-                              label: 'Email',
-                              keyboardType: TextInputType.emailAddress,
-                            ),
-                            const SizedBox(height: 16),
-
-                            _buildTextField(
-                              controller: _passwordController,
-                              label: 'Password',
-                              obscureText: true,
-                            ),
-                            const SizedBox(height: 24),
-
-                            SizedBox(
-                              width: 120,
-                              height: 40,
-                              child: ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFFFFA800),
-                                  foregroundColor: Colors.black,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.zero,
-                                  ),
-                                ),
-                                onPressed: _handleLogin,
-                                child: Text(
-                                  'Log In',
-                                  style: TextStyle(
-                                    fontFamily: 'RubikMonoOne',
-                                    fontSize: 16,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
               ),
+              _buildFooterText(),
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  Widget _buildHeader(BuildContext context, bool isLargeScreen) {
+    return Container(
+      color: const Color(0xFF2F394D),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Text(
+            'STATTRAK',
+            style: TextStyle(
+              fontFamily: 'RubikMonoOne',
+              fontSize: isLargeScreen ? 34 : 24,
+              color: const Color(0xFFFFA800),
             ),
           ),
-
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            child: Text(
-              'By signing up for Stattrak, you agree to the Terms of Service. View our Privacy Policy.',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontFamily: 'RubikMonoOne',
-                fontSize: 12,
-                color: Colors.black,
+          SizedBox(
+            width: isLargeScreen ? 80 : double.infinity,
+            height: 36,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFFA800),
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.zero,
+                ),
+              ),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => SignUpPage()),
+                );
+              },
+              child: Text(
+                'Sign Up',
+                style: TextStyle(
+                  fontFamily: 'RubikMonoOne',
+                  fontSize: 14,
+                ),
               ),
             ),
           ),
@@ -194,6 +123,104 @@ class _LoginPageState extends State<LoginPage> {
       ),
     );
   }
+
+  Widget _buildLargeScreenContent(BuildContext context) {
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Expanded(
+          flex: 2,
+          child: Padding(
+            padding: const EdgeInsets.only(right: 40),
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: Text(
+                'A WEB-BASED INFORMATION FOR CYCLISTS\nTHAT IT’S EASY AND FREE',
+                style: TextStyle(
+                  fontFamily: 'RubikMonoOne',
+                  fontSize: 34,
+                  color: Colors.black,
+                ),
+              ),
+            ),
+          ),
+        ),
+        Expanded(
+          flex: 1,
+          child: _buildForm(context),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildSmallScreenContent(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.center,
+      children: [
+        Padding(
+          padding: const EdgeInsets.only(bottom: 20),
+          child: Text(
+            'A WEB-BASED INFORMATION FOR CYCLISTS\nTHAT IT’S EASY AND FREE',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: 'RubikMonoOne',
+              fontSize: 24,
+              color: Colors.black,
+            ),
+          ),
+        ),
+        _buildForm(context),
+      ],
+    );
+  }
+
+  Widget _buildForm(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 350),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildTextField(
+              controller: _emailController,
+              label: 'Email',
+              keyboardType: TextInputType.emailAddress,
+            ),
+            const SizedBox(height: 16),
+            _buildTextField(
+              controller: _passwordController,
+              label: 'Password',
+              obscureText: true,
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: 212,
+              height: 48,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFFA800),
+                  foregroundColor: Colors.black,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.zero,
+                  ),
+                ),
+                onPressed: _handleLogin,
+                child: const Text(
+                  'Log In',
+                  style: TextStyle(
+                    fontFamily: 'RubikMonoOne',
+                    fontSize: 16,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
 
   Widget _buildTextField({
     required TextEditingController controller,
@@ -213,7 +240,7 @@ class _LoginPageState extends State<LoginPage> {
       },
       decoration: InputDecoration(
         labelText: label,
-        labelStyle: TextStyle(
+        labelStyle: const TextStyle(
           fontFamily: 'RubikMonoOne',
           fontSize: 14,
           color: Colors.black,
@@ -238,4 +265,26 @@ class _LoginPageState extends State<LoginPage> {
       ),
     );
   }
+
+  Widget _buildFooterText() {
+    return  Center(
+      child: RichText(
+        textAlign: TextAlign.center,
+        text: const TextSpan(
+          style: TextStyle(
+            fontFamily: 'RubikMonoOne',
+            fontSize: 12,
+            color: Colors.black,
+            height: 2.3,
+          ),
+          children: [
+            TextSpan(
+              text: 'By signing up for Stattrak, you agree to the Terms of Service. View our Privacy Policy.',
+            ),
+          ],
+        ),
+      ),
+    );
+  }
 }
+

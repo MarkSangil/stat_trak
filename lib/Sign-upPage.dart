@@ -62,170 +62,227 @@ class _SignUpPageState extends State<SignUpPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFFAFAFA),
-      body: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Container(
-            color: const Color(0xFF1E88E5),
-            padding:
-            const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Stack(
-                  children: [
-                    Text(
-                      'STATTRAK',
-                      style: TextStyle(
-                        fontFamily: 'RubikMonoOne',
-                        fontSize: 48,
-                        foreground: Paint()
-                          ..style = PaintingStyle.stroke
-                          ..strokeWidth = 4
-                          ..color = Colors.black,
-                      ),
-                    ),
-                    Text(
-                      'STATTRAK',
-                      style: TextStyle(
-                        fontFamily: 'RubikMonoOne',
-                        fontSize: 48,
-                        color: const Color(0xFFFFA800),
-                      ),
-                    ),
-                  ],
+      body: LayoutBuilder( // Use LayoutBuilder for responsiveness
+        builder: (context, constraints) {
+          final screenWidth = constraints.maxWidth;
+          final isLargeScreen = screenWidth > 800; // Example breakpoint
+
+          return Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              _buildHeader(context, isLargeScreen), // Pass isLargeScreen
+              Expanded(
+                child: SingleChildScrollView(
+                  padding: const EdgeInsets.symmetric(vertical: 40),
+                  child: isLargeScreen
+                      ? _buildLargeScreenContent(context)  // Use extracted method
+                      : _buildSmallScreenContent(context, isLargeScreen), // Pass isLargeScreen
                 ),
-                SizedBox(
-                  width: 104,
-                  height: 42,
-                  child: ElevatedButton(
-                    style: ElevatedButton.styleFrom(
-                      backgroundColor: const Color(0xFFFFA800),
-                      foregroundColor: Colors.black,
-                      shape: RoundedRectangleBorder(
-                        borderRadius: BorderRadius.zero,
-                      ),
-                    ),
-                    onPressed: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                            builder: (context) => const LoginPage()),
-                      );
-                    },
-                    child: const Text(
-                      'Log In',
-                      style: TextStyle(
-                        fontFamily: 'DMMono',
-                        fontSize: 16,
-                      ),
-                    ),
+              ),
+              _buildFooterText(), // Extract footer
+            ],
+          );
+        },
+      ),
+    );
+  }
+
+  // Extracted Header Widget
+  Widget _buildHeader(BuildContext context, bool isLargeScreen) {
+    return Container(
+      color: const Color(0xFF1E88E5),
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+      child: Row( // Changed back to Row for the header.  This layout works well.
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        crossAxisAlignment: CrossAxisAlignment.center,
+        children: [
+          Flexible( // But the stack was causing issues on small screens, wrap with flexible
+            child: Stack(
+              children: [
+                Text(
+                  'STATTRAK',
+                  style: TextStyle(
+                    fontFamily: 'RubikMonoOne',
+                    fontSize: isLargeScreen ? 48 : 32, // Responsive font size
+                    foreground: Paint()
+                      ..style = PaintingStyle.stroke
+                      ..strokeWidth = 4
+                      ..color = Colors.black,
+                  ),
+                ),
+                Text(
+                  'STATTRAK',
+                  style: TextStyle(
+                    fontFamily: 'RubikMonoOne',
+                    fontSize: isLargeScreen ? 48 : 32, // Responsive font size
+                    color: const Color(0xFFFFA800),
                   ),
                 ),
               ],
             ),
           ),
-          Expanded(
-            child: SingleChildScrollView(
-              padding:
-              const EdgeInsets.symmetric(horizontal: 20, vertical: 40),
-              child: Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(
-                    flex: 2,
-                    child: Padding(
-                      padding: const EdgeInsets.only(right: 40),
-                      child: Text(
-                        'A WEB-BASED INFORMATION FOR CYCLISTS THAT IT’S EASY AND FREE',
-                        style: TextStyle(
-                          fontFamily: 'RubikMonoOne',
-                          fontSize: 34,
-                          color: Colors.black,
-                        ),
-                      ),
-                    ),
-                  ),
-                  Expanded(
-                    flex: 1,
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 400),
-                      child: Form(
-                        key: _formKey,
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.stretch,
-                          children: [
-                            _buildTextField(
-                              controller: _nameController,
-                              label: 'Name',
-                            ),
-                            const SizedBox(height: 16),
-                            _buildTextField(
-                              controller: _emailController,
-                              label: 'Email',
-                              keyboardType: TextInputType.emailAddress,
-                            ),
-                            const SizedBox(height: 16),
-                            _buildTextField(
-                              controller: _passwordController,
-                              label: 'Password',
-                              obscureText: true,
-                            ),
-                            const SizedBox(height: 16),
-                            _buildTextField(
-                              controller: _confirmPasswordController,
-                              label: 'Confirm Password',
-                              obscureText: true,
-                              validator: (value) {
-                                if (value == null || value.isEmpty) {
-                                  return 'Please confirm your password';
-                                }
-                                if (value != _passwordController.text) {
-                                  return 'Passwords do not match';
-                                }
-                                return null;
-                              },
-                            ),
-                            const SizedBox(height: 24),
-                            SizedBox(
-                              width: 212,
-                              height: 48,
-                              child: ElevatedButton(
-                                style: ElevatedButton.styleFrom(
-                                  backgroundColor: const Color(0xFFFFA800),
-                                  foregroundColor: Colors.black,
-                                  shape: RoundedRectangleBorder(
-                                    borderRadius: BorderRadius.zero,
-                                  ),
-                                ),
-                                onPressed: _handleSignUp,
-                                child: const Text(
-                                  'Sign Up',
-                                  style: TextStyle(
-                                    fontFamily: 'DMMono',
-                                    fontSize: 20,
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  ),
-                ],
+          SizedBox(width: isLargeScreen ? 10 : 0),
+          SizedBox(
+            width: isLargeScreen ? 104 : double.infinity, // Full width on small screens
+            height: 42,
+            child: ElevatedButton(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFFFA800),
+                foregroundColor: Colors.black,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.zero,
+                ),
+              ),
+              onPressed: () {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (context) => const LoginPage()),
+                );
+              },
+              child: const Text(
+                'Log In',
+                style: TextStyle(
+                  fontFamily: 'DMMono',
+                  fontSize: 16,
+                ),
               ),
             ),
-          ),
-          Padding(
-            padding: const EdgeInsets.symmetric(vertical: 16),
-            child: _buildFooterText(),
           ),
         ],
       ),
     );
   }
 
+
+  // Extracted Large Screen Content
+  Widget _buildLargeScreenContent(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            flex: 2,
+            child: Padding(
+              padding: const EdgeInsets.only(right: 40),
+              child: Align( // Added Align widget
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'A WEB-BASED INFORMATION FOR CYCLISTS THAT IT’S EASY AND FREE',
+                  style: TextStyle(
+                    fontFamily: 'RubikMonoOne',
+                    fontSize: 34,
+                    color: Colors.black,
+                  ),
+                ),
+              ),
+            ),
+          ),
+          Expanded(
+            flex: 1,
+            child: _buildForm(context),
+          ),
+        ],
+      ),
+    );
+  }
+
+  // Extracted Small Screen Content
+  Widget _buildSmallScreenContent(BuildContext context, bool isLargeScreen) { // Added isLargeScreen
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 20),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.center, // Center on small screens
+        children: [
+          if (!isLargeScreen) // Add this condition
+            Padding(
+              padding: const EdgeInsets.only(bottom: 20),
+              child: Text(
+                'A WEB-BASED INFORMATION FOR CYCLISTS THAT IT’S EASY AND FREE',
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontFamily: 'RubikMonoOne',
+                  fontSize: 24, // Smaller font size for small screens
+                  color: Colors.black,
+                ),
+              ),
+            ),
+          _buildForm(context),
+        ],
+      ),
+    );
+  }
+
+
+  // Extracted Form Widget
+  Widget _buildForm(BuildContext context) {
+    return ConstrainedBox(
+      constraints: const BoxConstraints(maxWidth: 400),
+      child: Form(
+        key: _formKey,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            _buildTextField(
+              controller: _nameController,
+              label: 'Name',
+            ),
+            const SizedBox(height: 16),
+            _buildTextField(
+              controller: _emailController,
+              label: 'Email',
+              keyboardType: TextInputType.emailAddress,
+            ),
+            const SizedBox(height: 16),
+            _buildTextField(
+              controller: _passwordController,
+              label: 'Password',
+              obscureText: true,
+            ),
+            const SizedBox(height: 16),
+            _buildTextField(
+              controller: _confirmPasswordController,
+              label: 'Confirm Password',
+              obscureText: true,
+              validator: (value) {
+                if (value == null || value.isEmpty) {
+                  return 'Please confirm your password';
+                }
+                if (value != _passwordController.text) {
+                  return 'Passwords do not match';
+                }
+                return null;
+              },
+            ),
+            const SizedBox(height: 24),
+            SizedBox(
+              width: 212,
+              height: 48,
+              child: ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFFFA800),
+                  foregroundColor: Colors.black,
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.zero,
+                  ),
+                ),
+                onPressed: _handleSignUp,
+                child: const Text(
+                  'Sign Up',
+                  style: TextStyle(
+                    fontFamily: 'DMMono',
+                    fontSize: 20,
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  // Extracted TextField Widget
   Widget _buildTextField({
     required TextEditingController controller,
     required String label,
@@ -261,29 +318,30 @@ class _SignUpPageState extends State<SignUpPage> {
     );
   }
 
+  // Extracted Footer Widget
   Widget _buildFooterText() {
     return Center(
       child: RichText(
         textAlign: TextAlign.center,
-        text: TextSpan(
-          style: const TextStyle(
+        text: const TextSpan(
+          style: TextStyle(
             fontFamily: 'Dangrek',
             fontSize: 14,
             color: Colors.black,
             height: 2.3,
           ),
           children: [
-            const TextSpan(
+            TextSpan(
               text: 'By signing up for Stattrak, you agree to the ',
             ),
             TextSpan(
               text: 'Terms of Service',
-              style: const TextStyle(
+              style: TextStyle(
                 color: Colors.blue,
                 decoration: TextDecoration.underline,
               ),
             ),
-            const TextSpan(text: '. View our '),
+            TextSpan(text: '. View our '),
             TextSpan(
               text: 'Privacy Policy',
               style: const TextStyle(
@@ -291,10 +349,11 @@ class _SignUpPageState extends State<SignUpPage> {
                 decoration: TextDecoration.underline,
               ),
             ),
-            const TextSpan(text: '.'),
+            TextSpan(text: '.'),
           ],
         ),
       ),
     );
   }
 }
+
