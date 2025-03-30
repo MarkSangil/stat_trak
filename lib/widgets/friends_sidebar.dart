@@ -28,6 +28,9 @@ class _FriendsModalState extends State<FriendsModal> {
   bool _pendingFetched = false;
   bool _friendsFetched = false;
 
+  // ---------------------------------------------------------------------------
+  // Search users by full name (excluding the current user)
+  // ---------------------------------------------------------------------------
   Future<void> _searchUsers(String query) async {
     final response = await Supabase.instance.client
         .from('profiles')
@@ -40,6 +43,9 @@ class _FriendsModalState extends State<FriendsModal> {
     });
   }
 
+  // ---------------------------------------------------------------------------
+  // Load pending friend requests using a Postgres RPC
+  // ---------------------------------------------------------------------------
   Future<void> _loadPendingRequests() async {
     final response = await Supabase.instance.client.rpc('get_pending_requests', params: {
       'current_user_id': widget.currentUserId
@@ -53,6 +59,9 @@ class _FriendsModalState extends State<FriendsModal> {
     });
   }
 
+  // ---------------------------------------------------------------------------
+  // Load accepted friends using a Postgres RPC
+  // ---------------------------------------------------------------------------
   Future<void> _loadFriends() async {
     if (_friendsFetched) return;
     final response = await Supabase.instance.client.rpc('get_friends_list', params: {
@@ -64,18 +73,41 @@ class _FriendsModalState extends State<FriendsModal> {
     });
   }
 
-  Future<void> _acceptRequest(String userId) async {
-    await Supabase.instance.client
-        .from('user_friendships')
-        .update({'status': 'accepted'})
-        .match({'user_id': userId, 'friend_id': widget.currentUserId});
+  // ---------------------------------------------------------------------------
+  // Accept a friend request: update relationship status and send a notification
+  // ---------------------------------------------------------------------------
+  Future<void> _acceptRequest(String fromUserId) async {
+    final supabase = Supabase.instance.client;
 
-    await _loadPendingRequests();
-    setState(() {
-      _friendsFetched = false;
-    });
+    try {
+      // Update the relationship to 'accepted'
+      await supabase
+          .from('user_friendships')
+          .update({'status': 'accepted'})
+          .match({'user_id': fromUserId, 'friend_id': widget.currentUserId});
+
+      // Insert a notification for the original sender
+      await supabase.from('notifications').insert({
+        'type': 'friend_request_accepted',
+        'user_id': fromUserId,              // Notify the sender
+        'actor_user_id': widget.currentUserId, // Who accepted the request
+        'related_entity_id': widget.currentUserId,
+        'related_entity_type': 'user_friendships',
+        'is_read': false,
+      });
+
+      await _loadPendingRequests();
+      setState(() {
+        _friendsFetched = false;
+      });
+    } catch (e) {
+      debugPrint("Error accepting friend request: $e");
+    }
   }
 
+  // ---------------------------------------------------------------------------
+  // Reject or cancel a friend request
+  // ---------------------------------------------------------------------------
   Future<void> _rejectRequest(String userId) async {
     await Supabase.instance.client
         .from('user_friendships')
@@ -87,6 +119,47 @@ class _FriendsModalState extends State<FriendsModal> {
     await _loadPendingRequests();
   }
 
+  // ---------------------------------------------------------------------------
+  // Send a friend request: insert a pending friendship and notify the recipient
+  // ---------------------------------------------------------------------------
+  Future<void> _sendFriendRequest(String toUserId) async {
+    final supabase = Supabase.instance.client;
+    final fromUserId = supabase.auth.currentUser?.id;
+    if (fromUserId == null) {
+      debugPrint("No user is logged in, cannot send friend request.");
+      return;
+    }
+
+    try {
+      // Insert a pending friend relationship
+      await supabase.from('user_friendships').insert({
+        'user_id': fromUserId,
+        'friend_id': toUserId,
+        'status': 'pending',
+      });
+
+      // Insert a 'friend_request_received' notification for the recipient
+      await supabase.from('notifications').insert({
+        'type': 'friend_request_received',
+        'user_id': toUserId,           // Recipient gets notified
+        'actor_user_id': fromUserId,   // Sender is the actor
+        'related_entity_id': fromUserId, // Optionally, link back to sender or the friendship row
+        'related_entity_type': 'user_friendships',
+        'is_read': false,
+      });
+
+      debugPrint("Friend request sent to $toUserId, notification inserted.");
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(content: Text("Friend request sent.")),
+      );
+    } catch (e) {
+      debugPrint("Error sending friend request: $e");
+    }
+  }
+
+  // ---------------------------------------------------------------------------
+  // Open a user's profile
+  // ---------------------------------------------------------------------------
   void _openProfile(String id) {
     Navigator.push(
       context,
@@ -100,6 +173,9 @@ class _FriendsModalState extends State<FriendsModal> {
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // Build the Friends UI
+  // ---------------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -115,7 +191,7 @@ class _FriendsModalState extends State<FriendsModal> {
             child: Text("Friends", style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
           ),
           const SizedBox(height: 12),
-          // Search
+          // Search text field
           TextField(
             controller: _searchController,
             onChanged: _searchUsers,
@@ -126,8 +202,7 @@ class _FriendsModalState extends State<FriendsModal> {
             ),
           ),
           const SizedBox(height: 12),
-
-          // List area
+          // Display search results or pending/friends list
           Expanded(
             child: _searchController.text.isNotEmpty
                 ? ListView.builder(
@@ -141,6 +216,11 @@ class _FriendsModalState extends State<FriendsModal> {
                   title: Text(user['full_name']),
                   subtitle: Text('@${user['username']}'),
                   onTap: () => _openProfile(user['id']),
+                  // Button to send a friend request
+                  trailing: IconButton(
+                    icon: const Icon(Icons.person_add),
+                    onPressed: () => _sendFriendRequest(user['id']),
+                  ),
                 );
               },
             )

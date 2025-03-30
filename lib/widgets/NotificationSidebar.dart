@@ -1,21 +1,20 @@
 import 'package:flutter/material.dart';
 import 'package:stattrak/SharedLocationPage.dart';
+import 'package:stattrak/widgets/friends_sidebar.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:intl/intl.dart';
 
 // -----------------------------------------------------------------------------
 // 1) NotificationItem Model
-//    - Just stores data and returns a text message via displayMessage
-//    - NO navigation or BuildContext references here.
 // -----------------------------------------------------------------------------
 class NotificationItem {
   final String id;
-  final String type; // e.g., 'friend_request_received', 'location_shared'
+  final String type;
   final String? actorId;
   final String? actorUsername;
   final String? actorAvatarUrl;
-  final String? relatedEntityId;   // e.g., the shared_routes row ID
-  final String? relatedEntityType; // e.g., 'shared_route'
+  final String? relatedEntityId;
+  final String? relatedEntityType;
   final bool isRead;
   final DateTime createdAt;
 
@@ -50,13 +49,12 @@ class NotificationItem {
     }
   }
 
-  // Formats the creation date into a relative string (e.g., "5m ago", "Yesterday")
   String get displayDate {
     final now = DateTime.now();
     final difference = now.difference(createdAt);
 
     if (difference.inDays > 1) {
-      return DateFormat('MMM d, yyyy').format(createdAt); // e.g., Mar 28, 2025
+      return DateFormat('MMM d, yyyy').format(createdAt);
     } else if (difference.inDays == 1 ||
         (difference.inHours >= 24 && now.day != createdAt.day)) {
       return 'Yesterday';
@@ -88,9 +86,6 @@ class NotificationItem {
 
 // -----------------------------------------------------------------------------
 // 2) NotificationSidebar Widget
-//    - Fetches notifications from Supabase
-//    - Displays them in a list
-//    - Handles tapping (navigation) inside _handleNotificationTap()
 // -----------------------------------------------------------------------------
 class NotificationSidebar extends StatefulWidget {
   const NotificationSidebar({Key? key}) : super(key: key);
@@ -109,7 +104,9 @@ class _NotificationSidebarState extends State<NotificationSidebar> {
     _notificationsFuture = _fetchNotifications();
   }
 
+  // ---------------------------------------------------------------------------
   // Fetch notifications for the logged-in user
+  // ---------------------------------------------------------------------------
   Future<List<NotificationItem>> _fetchNotifications() async {
     final userId = _supabase.auth.currentUser?.id;
     if (userId == null) {
@@ -141,9 +138,11 @@ class _NotificationSidebarState extends State<NotificationSidebar> {
     }
   }
 
+  // ---------------------------------------------------------------------------
   // Mark a notification as read in the DB
+  // ---------------------------------------------------------------------------
   Future<void> _markAsRead(NotificationItem notif) async {
-    if (notif.isRead) return; // Already read
+    if (notif.isRead) return;
     try {
       await _supabase
           .from('notifications')
@@ -159,14 +158,33 @@ class _NotificationSidebarState extends State<NotificationSidebar> {
     }
   }
 
+  // ---------------------------------------------------------------------------
   // Handle user tapping a notification
+  // ---------------------------------------------------------------------------
   void _handleNotificationTap(NotificationItem notif) {
     print("Tapped notification: ${notif.id} - Type: ${notif.type}");
-    // 1) Mark as read
     _markAsRead(notif);
 
-    // 2) Navigate based on type
     switch (notif.type) {
+      case 'friend_request_received':
+      // Navigate to the FriendsModal so the user can accept/reject
+        final currentUserId = _supabase.auth.currentUser?.id;
+        if (currentUserId != null) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => FriendsModal(currentUserId: currentUserId),
+            ),
+          );
+        }
+        break;
+
+      case 'friend_request_accepted':
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text("Your friend request was accepted!")),
+        );
+        break;
+
       case 'location_shared':
         if (notif.relatedEntityId != null) {
           Navigator.push(
@@ -177,12 +195,22 @@ class _NotificationSidebarState extends State<NotificationSidebar> {
           );
         }
         break;
-    // Other cases...
+
+      case 'post_liked':
+        if (notif.relatedEntityId != null) {
+          // Example: Navigate to post detail
+          print("Navigate to PostDetailPage with ID: ${notif.relatedEntityId}");
+        }
+        break;
+
       default:
         print("No specific action defined for type: ${notif.type}");
     }
   }
 
+  // ---------------------------------------------------------------------------
+  // Build the Notification Sidebar UI
+  // ---------------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
     final sidebarColor = Theme.of(context).primaryColorDark;
@@ -194,7 +222,7 @@ class _NotificationSidebarState extends State<NotificationSidebar> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Header
+          // Title
           Padding(
             padding: const EdgeInsets.fromLTRB(16, 40, 16, 16),
             child: Text(
@@ -202,9 +230,6 @@ class _NotificationSidebarState extends State<NotificationSidebar> {
               style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textColor),
             ),
           ),
-          Divider(color: textColor.withOpacity(0.2), height: 1),
-
-          // Main list area
           Expanded(
             child: FutureBuilder<List<NotificationItem>>(
               future: _notificationsFuture,
@@ -256,6 +281,9 @@ class _NotificationSidebarState extends State<NotificationSidebar> {
     );
   }
 
+  // ---------------------------------------------------------------------------
+  // Single notification tile
+  // ---------------------------------------------------------------------------
   Widget _buildNotificationTile(NotificationItem notif) {
     final tileColor = notif.isRead
         ? Colors.transparent
@@ -272,7 +300,7 @@ class _NotificationSidebarState extends State<NotificationSidebar> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Actor avatar
+          // Actor's avatar
           CircleAvatar(
             radius: 20,
             backgroundColor: Colors.white.withOpacity(0.3),
@@ -285,7 +313,7 @@ class _NotificationSidebarState extends State<NotificationSidebar> {
           ),
           const SizedBox(width: 12),
 
-          // Message & date
+          // Notification text + date
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

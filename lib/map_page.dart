@@ -1,5 +1,8 @@
+import 'dart:convert';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
+import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
@@ -127,15 +130,42 @@ class _MapPageState extends State<MapPage> {
   // Search location logic
   Future<List<Map<String, dynamic>>> fetchLocations(String query) async {
     try {
-      return await mf.fetchLocations(query, geoapifyApiKey);
-    } catch (e) {
-      print("Error in fetchLocations UI layer: $e");
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Failed to search locations."), backgroundColor: Colors.red),
-        );
+      final String url = 'https://api.geoapify.com/v1/geocode/search?text=$query&apiKey=$geoapifyApiKey';
+
+      final http.Response response = await http.get(Uri.parse(url));
+
+      if (response.statusCode != 200) {
+        throw Exception('Failed to fetch locations: HTTP ${response.statusCode}');
       }
-      return [];
+
+      final Map<String, dynamic> data = json.decode(response.body);
+
+      if (data['features'] == null || !(data['features'] is List)) {
+        return [];
+      }
+
+      return (data['features'] as List).map<Map<String, dynamic>>((feature) {
+        final properties = feature['properties'] as Map<String, dynamic>;
+        final geometry = feature['geometry'] as Map<String, dynamic>;
+
+        // Extract coordinates from geometry
+        final List<dynamic> coordinates = geometry['coordinates'] as List<dynamic>;
+        final double longitude = coordinates[0] as double;
+        final double latitude = coordinates[1] as double;
+
+        // Create formatted address from components
+        final String name = properties['formatted'] ?? 'Unknown location';
+
+        // Return a properly structured Map without any nullable types
+        return {
+          'name': name,
+          'latlng': LatLng(latitude, longitude),
+          'address': name
+        };
+      }).toList();
+    } catch (e) {
+      print("Error fetching locations: $e");
+      throw Exception('Failed to fetch locations: $e');
     }
   }
 
