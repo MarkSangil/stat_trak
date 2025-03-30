@@ -93,8 +93,9 @@ class _LoginPageState extends State<LoginPage> {
               color: const Color(0xFFFFA800),
             ),
           ),
+          // Fixed SizedBox - provide a fixed width instead of double.infinity
           SizedBox(
-            width: isLargeScreen ? 80 : double.infinity,
+            width: 120, // Use a reasonable fixed width
             height: 36,
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(

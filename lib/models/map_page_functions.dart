@@ -149,50 +149,44 @@ Future<List<RouteInfo>> fetchAllRoutesForTwoPoints({
   return routes;
 }
 
-Future<List<Map<String, dynamic>>> fetchLocations(
-    String query, String apiKey) async {
-  // Basic check for empty query
-  if (query.trim().isEmpty) {
-    return [];
-  }
-
-  final url =
-      "https://api.geoapify.com/v1/geocode/search?text=${Uri.encodeComponent(query)}&apiKey=$apiKey";
+Future<List<Map<String, dynamic>>> fetchLocations(String query, String apiKey) async {
   try {
-    final response = await http.get(Uri.parse(url));
+    final String url = 'https://api.geoapify.com/v1/geocode/search?text=$query&apiKey=$apiKey';
 
-    if (response.statusCode == 200) {
-      final decoded = json.decode(response.body);
-      if (decoded['features'] == null) return []; // Handle case where features might be missing
+    final http.Response response = await http.get(Uri.parse(url));
 
-      List<Map<String, dynamic>> locations =
-      decoded['features'].map<Map<String, dynamic>>((feature) {
-        // Safely access properties
-        final properties = feature['properties'] ?? {};
-        final geometry = feature['geometry'] ?? {};
-        final coordinates = geometry['coordinates'];
-
-        if (coordinates is List && coordinates.length == 2) {
-          return {
-            'name': properties['formatted'] ?? 'Unknown Location',
-            'latlng': LatLng(
-              coordinates[1].toDouble(),
-              coordinates[0].toDouble(),
-            )
-          };
-        } else {
-          return null; // Invalid feature geometry
-        }
-      }).whereType<Map<String, dynamic>>().toList(); // Filter out nulls
-
-      return locations;
-    } else {
-      print("Failed to fetch locations: ${response.statusCode}");
-      throw Exception("Failed to fetch locations");
+    if (response.statusCode != 200) {
+      throw Exception('Failed to fetch locations: HTTP ${response.statusCode}');
     }
+
+    final Map<String, dynamic> data = json.decode(response.body);
+
+    if (data['features'] == null || !(data['features'] is List)) {
+      return [];
+    }
+
+    // Make sure we return a List<Map<String, dynamic>> with no nullable maps
+    return List<Map<String, dynamic>>.from((data['features'] as List).map((feature) {
+      final properties = feature['properties'] as Map<String, dynamic>;
+      final geometry = feature['geometry'] as Map<String, dynamic>;
+
+      // Extract coordinates and ensure they're not null
+      final List<dynamic> coordinates = geometry['coordinates'] as List<dynamic>;
+      final double longitude = coordinates[0] is double ? coordinates[0] : double.parse(coordinates[0].toString());
+      final double latitude = coordinates[1] is double ? coordinates[1] : double.parse(coordinates[1].toString());
+
+      // Create formatted name for display
+      final String name = properties['formatted'] ?? 'Unknown location';
+
+      return {
+        'name': name,
+        'latlng': LatLng(latitude, longitude),
+        'address': name,
+      };
+    }));
   } catch (e) {
-    print("Error fetching locations: $e");
-    throw Exception("Failed to fetch locations: $e");
+    print("Error in map_page_functions fetchLocations: $e");
+    throw Exception('Failed to fetch locations: $e');
   }
 }
 

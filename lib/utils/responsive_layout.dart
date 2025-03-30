@@ -20,14 +20,29 @@ class ResponsiveLayout extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final width = MediaQuery.of(context).size.width;
+    return LayoutBuilder(
+        builder: (context, constraints) {
+          final width = constraints.maxWidth;
 
-    if (width >= desktopBreakpoint) {
-      return desktopLayout;
-    } else if (width >= tabletBreakpoint) {
-      return tabletLayout;
-    } else {
-      return mobileLayout;
-    }
+          if (width >= desktopBreakpoint) {
+            return desktopLayout;
+          } else if (width >= tabletBreakpoint) {
+            return tabletLayout;
+          } else {
+            return mobileLayout;
+          }
+        }
+    );
+  }
+
+  // Helper method to determine current layout type
+  static LayoutType getLayoutType(BuildContext context) {
+    final width = MediaQuery.of(context).size.width;
+    if (width >= 900) return LayoutType.desktop;
+    if (width >= 600) return LayoutType.tablet;
+    return LayoutType.mobile;
   }
 }
+
+// Enum to make layout checks more readable
+enum LayoutType { mobile, tablet, desktop }

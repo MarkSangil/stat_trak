@@ -92,18 +92,18 @@ class _SignUpPageState extends State<SignUpPage> {
     return Container(
       color: const Color(0xFF1E88E5),
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-      child: Row( // Changed back to Row for the header.  This layout works well.
+      child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
         crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          Flexible( // But the stack was causing issues on small screens, wrap with flexible
+          Flexible(
             child: Stack(
               children: [
                 Text(
                   'STATTRAK',
                   style: TextStyle(
                     fontFamily: 'RubikMonoOne',
-                    fontSize: isLargeScreen ? 48 : 32, // Responsive font size
+                    fontSize: isLargeScreen ? 48 : 32,
                     foreground: Paint()
                       ..style = PaintingStyle.stroke
                       ..strokeWidth = 4
@@ -114,7 +114,7 @@ class _SignUpPageState extends State<SignUpPage> {
                   'STATTRAK',
                   style: TextStyle(
                     fontFamily: 'RubikMonoOne',
-                    fontSize: isLargeScreen ? 48 : 32, // Responsive font size
+                    fontSize: isLargeScreen ? 48 : 32,
                     color: const Color(0xFFFFA800),
                   ),
                 ),
@@ -122,8 +122,9 @@ class _SignUpPageState extends State<SignUpPage> {
             ),
           ),
           SizedBox(width: isLargeScreen ? 10 : 0),
+          // Fix the SizedBox width
           SizedBox(
-            width: isLargeScreen ? 104 : double.infinity, // Full width on small screens
+            width: 120, // Fixed width instead of isLargeScreen ? 104 : double.infinity
             height: 42,
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
@@ -152,7 +153,6 @@ class _SignUpPageState extends State<SignUpPage> {
       ),
     );
   }
-
 
   // Extracted Large Screen Content
   Widget _buildLargeScreenContent(BuildContext context) {
