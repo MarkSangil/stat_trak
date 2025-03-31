@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:stattrak/SharedLocationPage.dart';
 import 'package:stattrak/widgets/friends_sidebar.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
+import 'package:supabase_flutter/supabase_flutter.dart' hide ChannelFilter;
 import 'package:intl/intl.dart';
 
 // -----------------------------------------------------------------------------
@@ -85,7 +85,7 @@ class NotificationItem {
 }
 
 // -----------------------------------------------------------------------------
-// 2) NotificationSidebar Widget
+// 2) NotificationSidebar Widget with Latest Realtime Subscriptions
 // -----------------------------------------------------------------------------
 class NotificationSidebar extends StatefulWidget {
   const NotificationSidebar({Key? key}) : super(key: key);
@@ -96,51 +96,124 @@ class NotificationSidebar extends StatefulWidget {
 
 class _NotificationSidebarState extends State<NotificationSidebar> {
   final _supabase = Supabase.instance.client;
-  late Future<List<NotificationItem>> _notificationsFuture;
+
+  // Use RealtimeChannel (not SupabaseChannel)
+  late RealtimeChannel _notificationsChannel;
+
+  List<NotificationItem> _notifications = [];
+  bool _isLoading = true;
+  String? _error;
 
   @override
   void initState() {
     super.initState();
-    _notificationsFuture = _fetchNotifications();
+    _fetchNotifications();
+    _subscribeToNotifications();
   }
 
-  // ---------------------------------------------------------------------------
-  // Fetch notifications for the logged-in user
-  // ---------------------------------------------------------------------------
-  Future<List<NotificationItem>> _fetchNotifications() async {
+  // Fetch initial notifications for the logged-in user
+  Future<void> _fetchNotifications() async {
     final userId = _supabase.auth.currentUser?.id;
     if (userId == null) {
-      throw Exception('User not logged in.');
+      setState(() {
+        _error = 'User not logged in.';
+        _isLoading = false;
+      });
+      return;
     }
-    print("Fetching notifications for user: $userId");
 
     try {
       final response = await _supabase
           .from('notifications')
-          .select('*, actor:profiles!notifications_actor_user_id_fkey(username, avatar_url)')
+          .select(
+          '*, actor:profiles!notifications_actor_user_id_fkey(username, avatar_url)')
           .eq('user_id', userId)
           .order('created_at', ascending: false)
           .limit(50);
 
       if (response is List) {
-        final notifications = response
-            .map((item) => NotificationItem.fromMap(item as Map<String, dynamic>))
-            .toList();
-        print("Fetched ${notifications.length} notifications.");
-        return notifications;
+        setState(() {
+          _notifications = response
+              .map((item) =>
+              NotificationItem.fromMap(item as Map<String, dynamic>))
+              .toList();
+          _isLoading = false;
+        });
       } else {
-        print("Supabase notifications response was not a list: $response");
-        throw Exception('Unexpected data format received.');
+        setState(() {
+          _error = 'Unexpected data format received.';
+          _isLoading = false;
+        });
       }
     } catch (error) {
-      print('Error fetching notifications: $error');
-      throw Exception('Failed to load notifications.');
+      setState(() {
+        _error = 'Failed to load notifications: $error';
+        _isLoading = false;
+      });
     }
   }
 
-  // ---------------------------------------------------------------------------
+  // Subscribe to realtime notifications for the current user using channels
+  void _subscribeToNotifications() {
+    final userId = _supabase.auth.currentUser?.id;
+    if (userId == null) return;
+
+    _notificationsChannel = _supabase.channel('notifications-channel')
+        .onPostgresChanges(
+      // Corrected parameter name: 'event'
+      event: PostgresChangeEvent.insert,
+      schema: 'public',
+      table: 'notifications',
+      // Corrected filter syntax
+      filter: PostgresChangeFilter(
+        column: 'user_id',
+        // Corrected parameter name: 'type'
+        // Corrected enum: 'PostgresFilterOperator'
+        type: PostgresFilterOperator.eq, // Use 'type' and ensure 'PostgresFilterOperator' is recognized
+        value: userId,
+      ),
+      callback: (payload) {
+        try {
+          if (payload.newRecord is Map<String, dynamic>) {
+            final newNotification = NotificationItem.fromMap(payload.newRecord as Map<String, dynamic>);
+            if (mounted) {
+              setState(() => _notifications.insert(0, newNotification));
+              ScaffoldMessenger.of(context).showSnackBar(
+                SnackBar(
+                  content: Text(newNotification.displayMessage),
+                  duration: const Duration(seconds: 2),
+                ),
+              );
+            }
+          } else {
+            print("Received unexpected payload format: ${payload.newRecord}");
+          }
+        } catch (e) {
+          print("Error processing notification payload: $e");
+        }
+      },
+    ).subscribe((status, [error]) {
+      if (error != null) {
+        print("Error subscribing to notifications: $error");
+        if (mounted) {
+          setState(() {
+            _error = 'Failed to subscribe to notifications: $error';
+          });
+        }
+      } else {
+        print("Notification subscription status: $status");
+      }
+    });
+  }
+
+  @override
+  void dispose() {
+    // Remove the realtime channel when disposing
+    _supabase.removeChannel(_notificationsChannel);
+    super.dispose();
+  }
+
   // Mark a notification as read in the DB
-  // ---------------------------------------------------------------------------
   Future<void> _markAsRead(NotificationItem notif) async {
     if (notif.isRead) return;
     try {
@@ -148,26 +221,35 @@ class _NotificationSidebarState extends State<NotificationSidebar> {
           .from('notifications')
           .update({'is_read': true})
           .eq('id', notif.id);
-      if (mounted) {
-        setState(() {
-          _notificationsFuture = _fetchNotifications();
-        });
-      }
+      // Update the UI after marking as read
+      setState(() {
+        final index = _notifications.indexWhere((n) => n.id == notif.id);
+        if (index != -1) {
+          _notifications[index] = NotificationItem(
+            id: notif.id,
+            type: notif.type,
+            actorId: notif.actorId,
+            actorUsername: notif.actorUsername,
+            actorAvatarUrl: notif.actorAvatarUrl,
+            relatedEntityId: notif.relatedEntityId,
+            relatedEntityType: notif.relatedEntityType,
+            isRead: true,
+            createdAt: notif.createdAt,
+          );
+        }
+      });
     } catch (e) {
       print("Error marking notification as read: $e");
     }
   }
 
-  // ---------------------------------------------------------------------------
   // Handle user tapping a notification
-  // ---------------------------------------------------------------------------
   void _handleNotificationTap(NotificationItem notif) {
     print("Tapped notification: ${notif.id} - Type: ${notif.type}");
     _markAsRead(notif);
 
     switch (notif.type) {
       case 'friend_request_received':
-      // Navigate to the FriendsModal so the user can accept/reject
         final currentUserId = _supabase.auth.currentUser?.id;
         if (currentUserId != null) {
           Navigator.push(
@@ -178,43 +260,52 @@ class _NotificationSidebarState extends State<NotificationSidebar> {
           );
         }
         break;
-
       case 'friend_request_accepted':
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Your friend request was accepted!")),
+          const SnackBar(content: Text("Your friend request was accepted!")),
         );
         break;
-
       case 'location_shared':
         if (notif.relatedEntityId != null) {
           Navigator.push(
             context,
             MaterialPageRoute(
-              builder: (_) => SharedRoutePage(routeId: notif.relatedEntityId!),
+              builder: (_) =>
+                  SharedRoutePage(routeId: notif.relatedEntityId!),
             ),
           );
         }
         break;
-
       case 'post_liked':
         if (notif.relatedEntityId != null) {
-          // Example: Navigate to post detail
           print("Navigate to PostDetailPage with ID: ${notif.relatedEntityId}");
+          // TODO: Implement navigation to the actual post detail page
         }
         break;
-
       default:
         print("No specific action defined for type: ${notif.type}");
     }
   }
 
-  // ---------------------------------------------------------------------------
   // Build the Notification Sidebar UI
-  // ---------------------------------------------------------------------------
   @override
   Widget build(BuildContext context) {
     final sidebarColor = Theme.of(context).primaryColorDark;
     final textColor = Colors.white;
+
+    if (_isLoading) {
+      return Center(child: CircularProgressIndicator(color: textColor));
+    }
+
+    if (_error != null) {
+      return Center(
+        child: Text(
+          'Error loading notifications.\n$_error',
+          style: TextStyle(color: textColor.withOpacity(0.8)),
+          textAlign: TextAlign.center,
+        ),
+      );
+    }
 
     return Container(
       width: 300,
@@ -227,53 +318,27 @@ class _NotificationSidebarState extends State<NotificationSidebar> {
             padding: const EdgeInsets.fromLTRB(16, 40, 16, 16),
             child: Text(
               "Notifications",
-              style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: textColor),
+              style: TextStyle(
+                  fontSize: 20,
+                  fontWeight: FontWeight.bold,
+                  color: textColor),
             ),
           ),
           Expanded(
-            child: FutureBuilder<List<NotificationItem>>(
-              future: _notificationsFuture,
-              builder: (context, snapshot) {
-                if (snapshot.connectionState == ConnectionState.waiting) {
-                  return Center(child: CircularProgressIndicator(color: textColor));
-                } else if (snapshot.hasError) {
-                  return Center(
-                    child: Text(
-                      'Error loading notifications.\n${snapshot.error}',
-                      style: TextStyle(color: textColor.withOpacity(0.8)),
-                      textAlign: TextAlign.center,
-                    ),
+            child: RefreshIndicator(
+              onRefresh: _fetchNotifications,
+              color: textColor,
+              backgroundColor: sidebarColor,
+              child: ListView.builder(
+                itemCount: _notifications.length,
+                itemBuilder: (context, index) {
+                  final notif = _notifications[index];
+                  return InkWell(
+                    onTap: () => _handleNotificationTap(notif),
+                    child: _buildNotificationTile(notif),
                   );
-                } else if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                  return Center(
-                    child: Text(
-                      'No new notifications',
-                      style: TextStyle(color: textColor.withOpacity(0.8)),
-                    ),
-                  );
-                }
-
-                final notifications = snapshot.data!;
-                return RefreshIndicator(
-                  onRefresh: () async {
-                    setState(() {
-                      _notificationsFuture = _fetchNotifications();
-                    });
-                  },
-                  color: textColor,
-                  backgroundColor: sidebarColor,
-                  child: ListView.builder(
-                    itemCount: notifications.length,
-                    itemBuilder: (context, index) {
-                      final notif = notifications[index];
-                      return InkWell(
-                        onTap: () => _handleNotificationTap(notif),
-                        child: _buildNotificationTile(notif),
-                      );
-                    },
-                  ),
-                );
-              },
+                },
+              ),
             ),
           ),
         ],
@@ -281,9 +346,7 @@ class _NotificationSidebarState extends State<NotificationSidebar> {
     );
   }
 
-  // ---------------------------------------------------------------------------
-  // Single notification tile
-  // ---------------------------------------------------------------------------
+  // Build a single notification tile
   Widget _buildNotificationTile(NotificationItem notif) {
     final tileColor = notif.isRead
         ? Colors.transparent
@@ -295,7 +358,8 @@ class _NotificationSidebarState extends State<NotificationSidebar> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       decoration: BoxDecoration(
         color: tileColor,
-        border: Border(bottom: BorderSide(color: Colors.white.withOpacity(0.1))),
+        border:
+        Border(bottom: BorderSide(color: Colors.white.withOpacity(0.1))),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
@@ -304,15 +368,17 @@ class _NotificationSidebarState extends State<NotificationSidebar> {
           CircleAvatar(
             radius: 20,
             backgroundColor: Colors.white.withOpacity(0.3),
-            backgroundImage: (notif.actorAvatarUrl != null && notif.actorAvatarUrl!.isNotEmpty)
+            backgroundImage: (notif.actorAvatarUrl != null &&
+                notif.actorAvatarUrl!.isNotEmpty)
                 ? NetworkImage(notif.actorAvatarUrl!)
                 : null,
-            child: (notif.actorAvatarUrl == null || notif.actorAvatarUrl!.isEmpty)
-                ? Icon(Icons.person, color: Colors.white.withOpacity(0.7), size: 22)
+            child: (notif.actorAvatarUrl == null ||
+                notif.actorAvatarUrl!.isEmpty)
+                ? Icon(Icons.person,
+                color: Colors.white.withOpacity(0.7), size: 22)
                 : null,
           ),
           const SizedBox(width: 12),
-
           // Notification text + date
           Expanded(
             child: Column(
@@ -322,7 +388,8 @@ class _NotificationSidebarState extends State<NotificationSidebar> {
                   notif.displayMessage,
                   style: TextStyle(
                     color: titleColor,
-                    fontWeight: notif.isRead ? FontWeight.normal : FontWeight.w600,
+                    fontWeight:
+                    notif.isRead ? FontWeight.normal : FontWeight.w600,
                   ),
                   maxLines: 3,
                   overflow: TextOverflow.ellipsis,
@@ -335,12 +402,14 @@ class _NotificationSidebarState extends State<NotificationSidebar> {
               ],
             ),
           ),
-
           // Unread indicator
           if (!notif.isRead)
             Padding(
               padding: const EdgeInsets.only(left: 8.0, top: 4),
-              child: CircleAvatar(radius: 4, backgroundColor: Colors.blueAccent),
+              child: CircleAvatar(
+                radius: 4,
+                backgroundColor: Colors.blueAccent,
+              ),
             ),
         ],
       ),

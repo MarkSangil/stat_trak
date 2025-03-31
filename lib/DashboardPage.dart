@@ -118,11 +118,9 @@ class _DashboardPageState extends State<DashboardPage> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Left column (posts) takes up most of the width
         Expanded(
           child: _buildPostFeed(),
         ),
-        // Right column (weather and sidebars) has a fixed width
         SizedBox(
           width: 300,
           child: _buildSidebarAndWeather(),
@@ -136,12 +134,10 @@ class _DashboardPageState extends State<DashboardPage> {
     return Row(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        // Left column (posts) takes up most of the width
         Expanded(
           flex: 2,
           child: _buildPostFeed(),
         ),
-        // Right column (weather and sidebars)
         Expanded(
           flex: 1,
           child: _buildSidebarAndWeather(),
@@ -154,15 +150,13 @@ class _DashboardPageState extends State<DashboardPage> {
   Widget _buildMobileLayout() {
     return Column(
       children: [
-        // Posts feed takes most of the height
         Expanded(
           child: _buildPostFeed(),
         ),
-        // Weather widget at the bottom with limited height
         SizedBox(
-          height: 150, // Fixed height for weather on mobile
+          height: 150,
           width: double.infinity,
-          child: _buildWeatherWidget(), // Only show weather, not the full sidebar
+          child: _buildWeatherWidget(),
         ),
       ],
     );
@@ -265,7 +259,6 @@ class _DashboardPageState extends State<DashboardPage> {
       height: double.infinity,
       child: Stack(
         children: [
-          // Weather widget at the top
           Positioned(
             top: 20,
             left: 20,
@@ -308,7 +301,6 @@ class _DashboardPageState extends State<DashboardPage> {
             )
                 : Container(),
           ),
-          // Sidebars
           if (_activeSidebar == SidebarType.notification)
             const Positioned(
               top: 120, // Place below weather widget
@@ -319,7 +311,7 @@ class _DashboardPageState extends State<DashboardPage> {
             ),
           if (_activeSidebar == SidebarType.group)
             const Positioned(
-              top: 120, // Place below weather widget
+              top: 120,
               left: 0,
               right: 0,
               bottom: 0,

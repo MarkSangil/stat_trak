@@ -84,9 +84,7 @@ Future<void> fetchAllRoutes({
   if (marker1 == null || marker2 == null) return;
 
   final routeTypes = ['balanced', 'short', 'less_maneuvers'];
-  // Clear previous alternatives before fetching new ones
   routeAlternatives.clear();
-  // Trigger UI update to remove old routes immediately (optional but good UX)
   setStateCallback();
 
   List<Future<RouteInfo?>> futures = [];

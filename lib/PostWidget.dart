@@ -20,14 +20,14 @@ class PostWidget extends StatelessWidget {
             const SizedBox(height: 8),
             Text(post.title, style: const TextStyle(fontSize: 18)),
             const SizedBox(height: 8),
-            Row(
-              children: [
-                Text("Distance: ${post.distance} km"),
-                const SizedBox(width: 16),
-                Text("Elev Gain: ${post.elevation} m"),
-              ],
-            ),
-            const SizedBox(height: 8),
+            // Row(
+            //   children: [
+            //     Text("Distance: ${post.distance} km"),
+            //     const SizedBox(width: 16),
+            //     Text("Elev Gain: ${post.elevation} m"),
+            //   ],
+            // ),
+            // const SizedBox(height: 8),
             SizedBox(
               height: 100,
               child: ListView(

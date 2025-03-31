@@ -14,7 +14,7 @@ class PostProvider with ChangeNotifier {
 
   final supabase = Supabase.instance.client;
 
-  /// Load the first 5-7 posts
+  /// Load the first 5 posts
   Future<void> fetchInitialPosts() async {
     _posts.clear();
     _hasMore = true;
@@ -50,10 +50,10 @@ class PostProvider with ChangeNotifier {
         _posts.add(Post(
           username: profile?['username'] ?? 'Unknown',
           date: DateTime.parse(item['created_at']),
-          location: '', // optional: if you store location in profiles or posts
+          location: '',
           title: item['content'] ?? '',
-          distance: 0.0,
-          elevation: 0.0,
+          // distance: 0.0,
+          // elevation: 0.0,
           imageUrls: (item['photos'] != null && item['photos'] is List)
               ? List<String>.from(item['photos'])
               : item['photos'] is String

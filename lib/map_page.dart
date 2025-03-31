@@ -1,5 +1,4 @@
 import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:http/http.dart' as http;
@@ -7,7 +6,7 @@ import 'package:latlong2/latlong.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
 import 'package:flutter_map_cancellable_tile_provider/flutter_map_cancellable_tile_provider.dart';
-import 'models/map_page_functions.dart' as mf; // Ensure this path is correct
+import 'models/map_page_functions.dart' as mf;
 import 'package:geolocator/geolocator.dart';
 import 'package:stattrak/weather_service.dart';
 import 'package:stattrak/widgets/appbar.dart';

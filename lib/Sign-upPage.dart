@@ -36,7 +36,6 @@ class _SignUpPageState extends State<SignUpPage> {
       );
 
       if (user == null) {
-        // Either sign-up failed, or user needs to confirm email
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(
@@ -46,7 +45,6 @@ class _SignUpPageState extends State<SignUpPage> {
         return;
       }
 
-      // Sign-up successful and profile created
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => MapPage()),
@@ -62,24 +60,24 @@ class _SignUpPageState extends State<SignUpPage> {
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: const Color(0xFFFAFAFA),
-      body: LayoutBuilder( // Use LayoutBuilder for responsiveness
+      body: LayoutBuilder(
         builder: (context, constraints) {
           final screenWidth = constraints.maxWidth;
-          final isLargeScreen = screenWidth > 800; // Example breakpoint
+          final isLargeScreen = screenWidth > 800;
 
           return Column(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              _buildHeader(context, isLargeScreen), // Pass isLargeScreen
+              _buildHeader(context, isLargeScreen),
               Expanded(
                 child: SingleChildScrollView(
                   padding: const EdgeInsets.symmetric(vertical: 40),
                   child: isLargeScreen
-                      ? _buildLargeScreenContent(context)  // Use extracted method
-                      : _buildSmallScreenContent(context, isLargeScreen), // Pass isLargeScreen
+                      ? _buildLargeScreenContent(context)
+                      : _buildSmallScreenContent(context, isLargeScreen),
                 ),
               ),
-              _buildFooterText(), // Extract footer
+              _buildFooterText(),
             ],
           );
         },
@@ -87,7 +85,6 @@ class _SignUpPageState extends State<SignUpPage> {
     );
   }
 
-  // Extracted Header Widget
   Widget _buildHeader(BuildContext context, bool isLargeScreen) {
     return Container(
       color: const Color(0xFF1E88E5),
@@ -122,9 +119,8 @@ class _SignUpPageState extends State<SignUpPage> {
             ),
           ),
           SizedBox(width: isLargeScreen ? 10 : 0),
-          // Fix the SizedBox width
           SizedBox(
-            width: 120, // Fixed width instead of isLargeScreen ? 104 : double.infinity
+            width: 120,
             height: 42,
             child: ElevatedButton(
               style: ElevatedButton.styleFrom(
@@ -154,7 +150,6 @@ class _SignUpPageState extends State<SignUpPage> {
     );
   }
 
-  // Extracted Large Screen Content
   Widget _buildLargeScreenContent(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
@@ -165,7 +160,7 @@ class _SignUpPageState extends State<SignUpPage> {
             flex: 2,
             child: Padding(
               padding: const EdgeInsets.only(right: 40),
-              child: Align( // Added Align widget
+              child: Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
                   'A WEB-BASED INFORMATION FOR CYCLISTS THAT IT’S EASY AND FREE',
@@ -187,14 +182,13 @@ class _SignUpPageState extends State<SignUpPage> {
     );
   }
 
-  // Extracted Small Screen Content
-  Widget _buildSmallScreenContent(BuildContext context, bool isLargeScreen) { // Added isLargeScreen
+  Widget _buildSmallScreenContent(BuildContext context, bool isLargeScreen) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center, // Center on small screens
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          if (!isLargeScreen) // Add this condition
+          if (!isLargeScreen)
             Padding(
               padding: const EdgeInsets.only(bottom: 20),
               child: Text(
@@ -202,7 +196,7 @@ class _SignUpPageState extends State<SignUpPage> {
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontFamily: 'RubikMonoOne',
-                  fontSize: 24, // Smaller font size for small screens
+                  fontSize: 24,
                   color: Colors.black,
                 ),
               ),
@@ -282,7 +276,6 @@ class _SignUpPageState extends State<SignUpPage> {
     );
   }
 
-  // Extracted TextField Widget
   Widget _buildTextField({
     required TextEditingController controller,
     required String label,
@@ -318,7 +311,6 @@ class _SignUpPageState extends State<SignUpPage> {
     );
   }
 
-  // Extracted Footer Widget
   Widget _buildFooterText() {
     return Center(
       child: RichText(
