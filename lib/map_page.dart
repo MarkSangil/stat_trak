@@ -46,11 +46,6 @@ class _MapPageState extends State<MapPage> {
   void initState() {
     super.initState();
     _fetchInitialData();
-    if (geoapifyApiKey == 'MISSING_GEOAPIFY_KEY') {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        _showErrorSnackbar("Geoapify API Key is missing!");
-      });
-    }
   }
 
   @override

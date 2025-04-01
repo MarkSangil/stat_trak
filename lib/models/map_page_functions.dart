@@ -1,6 +1,8 @@
 import 'dart:async';
 import 'dart:convert';
 import 'dart:math';
+import 'package:flutter/foundation.dart' show kIsWeb;
+import 'dart:io' show Platform;
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:http/http.dart' as http;
@@ -183,7 +185,7 @@ Future<void> fetchAndSetRoutes({
   required Function(String) showErrorMessage,
   String mode = 'drive',
 }) async {
-  if (apiKey.isEmpty || apiKey == "b443d51cf9934664828c14742e5476d9") {
+  if (apiKey.isEmpty || apiKey == "MISSING_GEOAPIFY_KEY") {
     showErrorMessage("Cannot fetch routes: Geoapify API Key is missing.");
     return;
   }
@@ -546,18 +548,28 @@ Future<LatLng?> getHighAccuracyLocation(Function(String)? showErrorMessage) asyn
     return LatLng(position.latitude, position.longitude);
   } catch (e) {
     if (e is TimeoutException) {
-      print("Location request timed out. Trying with last known position.");
-      try {
-        Position? position = await Geolocator.getLastKnownPosition();
-        if (position != null) {
-          return LatLng(position.latitude, position.longitude);
+      print("Location request timed out.");
+      // *** CHANGE HERE ***
+      if (!kIsWeb) { // Only try last known on non-web platforms
+        print("Trying with last known position.");
+        try {
+          Position? position = await Geolocator.getLastKnownPosition();
+          if (position != null) {
+            return LatLng(position.latitude, position.longitude);
+          } else {
+            print("Last known position is null.");
+          }
+        } catch (fallbackError) {
+          // Handle potential errors on mobile too, though less likely
+          print("Error getting last known position: $fallbackError");
         }
-      } catch (fallbackError) {
-        print("Error getting last known position: $fallbackError");
+      } else {
+        print("Skipping getLastKnownPosition on web platform.");
       }
+      // *** END CHANGE ***
     }
     print("Error getting high accuracy location: $e");
-    showErrorMessage?.call("Location error: Please ensure GPS is enabled and you have clear sky view.");
+    showErrorMessage?.call("Location error. Ensure GPS/Location is enabled."); // Modified message
     return null;
   }
 }
@@ -694,27 +706,32 @@ SegmentProjection _pointToLineSegmentDistance(LatLng point, LatLng lineStart, La
 }
 
 /// For better backend sync - with error fallback
-Future<void> syncProgressWithBackend({
+Future<void> syncProgressWithSupabase({
   required String routeId,
   required LatLng currentLocation,
   required double progress,
 }) async {
-  try {
-    final response = await http.post(
-      Uri.parse("https://your-backend.com/api/route/progress"),
-      body: {
-        "routeId": routeId,
-        "lat": currentLocation.latitude.toString(),
-        "lng": currentLocation.longitude.toString(),
-        "progress": progress.toString(),
-        "timestamp": DateTime.now().toIso8601String(),
-      },
-    ).timeout(Duration(seconds: 5));
+  final userId = Supabase.instance.client.auth.currentUser?.id;
 
-    if (response.statusCode != 200) {
-      throw Exception("Backend returned status code ${response.statusCode}");
-    }
+  if (userId == null) {
+    print("User not logged in");
+    return;
+  }
+
+  try {
+    final response = await Supabase.instance.client
+        .from('route_progress')
+        .insert({
+      'route_id': routeId,
+      'user_id': userId,
+      'lat': currentLocation.latitude,
+      'lng': currentLocation.longitude,
+      'progress': progress,
+      'timestamp': DateTime.now().toIso8601String(),
+    });
+
+    print("Successfully synced with Supabase: $progress%");
   } catch (e) {
-    print("Backend sync error: $e");
+    print("Supabase sync error: $e");
   }
 }

@@ -100,13 +100,13 @@ class _RouteTrackingPageState extends State<RouteTrackingPage> {
   void _showErrorSnackbar(String message) {
     if (!mounted) return;
 
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text(message),
-        backgroundColor: Colors.red,
-        duration: const Duration(seconds: 3),
-      ),
-    );
+    // ScaffoldMessenger.of(context).showSnackBar(
+    //   SnackBar(
+    //     content: Text(message),
+    //     backgroundColor: Colors.red,
+    //     duration: const Duration(seconds: 3),
+    //   ),
+    // );
   }
 
   // Added missing method for showing success snackbars
@@ -295,7 +295,7 @@ class _RouteTrackingPageState extends State<RouteTrackingPage> {
     if (_trackingState.userLocation == null) return;
 
     try {
-      await mf.syncProgressWithBackend(
+      await mf.syncProgressWithSupabase(
         routeId: widget.selectedRoute.id,
         currentLocation: _trackingState.userLocation!,
         progress: _trackingState.progress.percentage,
