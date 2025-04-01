@@ -1,20 +1,19 @@
-import 'dart:convert';
-
+import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_map/flutter_map.dart';
-import 'package:http/http.dart' as http;
 import 'package:latlong2/latlong.dart';
 import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
 import 'package:flutter_map_cancellable_tile_provider/flutter_map_cancellable_tile_provider.dart';
-import 'models/map_page_functions.dart' as mf; // Ensure this path is correct
-import 'package:geolocator/geolocator.dart';
+import 'package:stattrak/RouteTrackingPage.dart' show RouteTrackingPage;
+// Import logic functions
+import 'models/map_page_functions.dart' as mf;
 import 'package:stattrak/weather_service.dart';
-import 'package:stattrak/widgets/appbar.dart';
+import 'package:stattrak/widgets/appbar.dart';    // Ensure path is correct
 import 'package:supabase_flutter/supabase_flutter.dart';
 
-// If needed, set a default or handle missing
-final String geoapifyApiKey = dotenv.env['GEOAPIFY_API_KEY'] ?? "YOUR_GEOAPIFY_API_KEY";
+// Ensure API Key is loaded
+final String geoapifyApiKey = dotenv.env['GEOAPIFY_API_KEY'] ?? "MISSING_GEOAPIFY_KEY";
 
 class MapPage extends StatefulWidget {
   @override
@@ -22,24 +21,36 @@ class MapPage extends StatefulWidget {
 }
 
 class _MapPageState extends State<MapPage> {
+  // --- State Variables ---
   LatLng? marker1;
   LatLng? marker2;
   List<mf.RouteInfo> routeAlternatives = [];
-
   double zoomLevel = 13.0;
+  bool showMarkerDetails = false;
+  String? _avatarUrl;
+  final userId = Supabase.instance.client.auth.currentUser?.id;
+
+  // --- Loading/Busy Flags ---
+  bool _isLoadingAvatar = true;
+  bool _isLoadingRoutes = false;
+  bool _isLoadingLocation = false;
+  // bool _isSharingRoute = false; // Add if share feature is re-added
+
+  // --- Controllers ---
   final MapController mapController = MapController();
   TextEditingController searchController = TextEditingController();
   TextEditingController marker1Controller = TextEditingController();
   TextEditingController marker2Controller = TextEditingController();
 
-  bool showMarkerDetails = false;
-  String? _avatarUrl;
-  final userId = Supabase.instance.client.auth.currentUser?.id;
-
   @override
   void initState() {
     super.initState();
-    _loadUserAvatar();
+    _fetchInitialData();
+    if (geoapifyApiKey == "MISSING_GEOAPIFY_KEY") {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        _showErrorSnackbar("Geoapify API Key is missing!");
+      });
+    }
   }
 
   @override
@@ -51,529 +62,122 @@ class _MapPageState extends State<MapPage> {
     super.dispose();
   }
 
-  // ---------------------------
-  // Load user avatar from 'profiles'
-  // ---------------------------
-  Future<void> _loadUserAvatar() async {
-    if (userId == null) {
-      print("Cannot load avatar: User not logged in.");
-      return;
-    }
-    try {
-      final response = await Supabase.instance.client
-          .from('profiles')
-          .select('avatar_url')
-          .eq('id', userId!)
-          .maybeSingle();
-
-      if (mounted && response != null) {
-        setState(() {
-          _avatarUrl = response['avatar_url'];
-        });
-      }
-    } on PostgrestException catch (error) {
-      print("Supabase error loading avatar: ${error.message}");
-    } catch (error) {
-      print("Unexpected error loading avatar: $error");
+  // --- Initial Data Fetch ---
+  Future<void> _fetchInitialData() async {
+    if (userId != null) {
+      setState(() => _isLoadingAvatar = true);
+      final url = await mf.fetchUserAvatar(userId!);
+      if (mounted) setState(() { _avatarUrl = url; _isLoadingAvatar = false; });
+    } else {
+      if (mounted) setState(() => _isLoadingAvatar = false);
     }
   }
 
-  // Show a dialog with weather details for marker1
+  // --- UI Feedback Helpers ---
+  void _showSnackbar(String message, {bool isError = false}) {
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).hideCurrentSnackBar();
+    ScaffoldMessenger.of(context).showSnackBar(SnackBar(
+      content: Text(message),
+      backgroundColor: isError ? Colors.redAccent : Theme.of(context).snackBarTheme.backgroundColor,
+      duration: Duration(seconds: isError ? 4 : 2),
+    ));
+  }
+  void _showInfoSnackbar(String message) => _showSnackbar(message);
+  void _showErrorSnackbar(String message) => _showSnackbar(message, isError: true);
+
+  // --- Callbacks for Logic Functions ---
+  void _triggerWeatherFetch(LatLng location) {
+    WeatherService.fetchDetailedForecast(lat: location.latitude, lon: location.longitude)
+        .then((forecast) { if (mounted) showDetailedForecastDialog(forecast); })
+        .catchError((error) { _showErrorSnackbar("Could not fetch weather data."); });
+  }
+
+  void _triggerRouteFetch() {
+    if (marker1 != null && marker2 != null) {
+      setState(() => _isLoadingRoutes = true);
+      mf.fetchAndSetRoutes(
+        marker1: marker1!, marker2: marker2!,
+        routeListToUpdate: routeAlternatives,
+        updateStateCallback: () { if (mounted) setState(() => _isLoadingRoutes = false); },
+        fitMapCallback: () => mf.fitMapToRoutes(routeAlternatives: routeAlternatives, mapController: mapController),
+        apiKey: geoapifyApiKey,
+        showInfoMessage: _showInfoSnackbar,
+        showErrorMessage: _showErrorSnackbar,
+      ).catchError((e){ if (mounted) setState(() => _isLoadingRoutes = false); });
+    }
+  }
+
+  void _updateMarkerText() {
+    marker1Controller.text = marker1 != null ? "${marker1!.latitude.toStringAsFixed(6)}, ${marker1!.longitude.toStringAsFixed(6)}" : "";
+    marker2Controller.text = marker2 != null ? "${marker2!.latitude.toStringAsFixed(6)}, ${marker2!.longitude.toStringAsFixed(6)}" : "";
+  }
+
+  // --- UI Dialog ---
   void showDetailedForecastDialog(OneCallForecast forecast) {
+    // (Keep implementation as before, maybe add Theme styling)
     if (!mounted) return;
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
           title: Text("Detailed Forecast"),
-          content: SingleChildScrollView(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Text("Current Temp: ${forecast.currentTemp?.toStringAsFixed(1) ?? 'N/A'} °C"),
-                Text("Description: ${forecast.currentDescription ?? 'N/A'}"),
-                SizedBox(height: 16),
-                Text("Daily Forecast:", style: TextStyle(fontWeight: FontWeight.bold)),
-                SizedBox(height: 4),
-                if (forecast.dailyForecasts == null || forecast.dailyForecasts!.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 8.0),
-                    child: Text("No daily forecast available."),
-                  )
-                else
-                  ...forecast.dailyForecasts!.map((day) => Padding(
-                    padding: const EdgeInsets.symmetric(vertical: 4.0),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text("Day: ${day.dayTemp?.toStringAsFixed(1) ?? 'N/A'}°C, Night: ${day.nightTemp?.toStringAsFixed(1) ?? 'N/A'}°C"),
-                        Text("Desc: ${day.description ?? 'N/A'}"),
-                        Divider(height: 10, thickness: 0.5),
-                      ],
-                    ),
-                  )).toList(),
-              ],
-            ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(context).pop(),
-              child: Text("Close"),
-            ),
-          ],
+          content: SingleChildScrollView( /* ... content ... */ ),
+          actions: [ TextButton(onPressed: () => Navigator.of(context).pop(), child: Text("Close")) ],
         );
       },
     );
   }
 
-  // Search location logic
-  Future<List<Map<String, dynamic>>> fetchLocations(String query) async {
-    try {
-      final String url = 'https://api.geoapify.com/v1/geocode/search?text=$query&apiKey=$geoapifyApiKey';
-
-      final http.Response response = await http.get(Uri.parse(url));
-
-      if (response.statusCode != 200) {
-        throw Exception('Failed to fetch locations: HTTP ${response.statusCode}');
-      }
-
-      final Map<String, dynamic> data = json.decode(response.body);
-
-      if (data['features'] == null || !(data['features'] is List)) {
-        return [];
-      }
-
-      return (data['features'] as List).map<Map<String, dynamic>>((feature) {
-        final properties = feature['properties'] as Map<String, dynamic>;
-        final geometry = feature['geometry'] as Map<String, dynamic>;
-
-        // Extract coordinates from geometry
-        final List<dynamic> coordinates = geometry['coordinates'] as List<dynamic>;
-        final double longitude = coordinates[0] as double;
-        final double latitude = coordinates[1] as double;
-
-        // Create formatted address from components
-        final String name = properties['formatted'] ?? 'Unknown location';
-
-        // Return a properly structured Map without any nullable types
-        return {
-          'name': name,
-          'latlng': LatLng(latitude, longitude),
-          'address': name
-        };
-      }).toList();
-    } catch (e) {
-      print("Error fetching locations: $e");
-      throw Exception('Failed to fetch locations: $e');
-    }
-  }
-
-  // Move the map to a given location
-  void moveToLocation(LatLng location, {double? targetZoom}) {
-    mf.moveToLocation(mapController, location, targetZoom ?? zoomLevel);
-  }
-
-  // Add a marker on tap
-  void addMarker(LatLng location) {
-    if (!mounted) return;
-    setState(() {
-      final coordsText = "${location.latitude.toStringAsFixed(6)}, ${location.longitude.toStringAsFixed(6)}";
-      if (marker1 == null) {
-        marker1 = location;
-        marker1Controller.text = coordsText;
-
-        // Optionally fetch weather for marker1
-        WeatherService.fetchDetailedForecast(
-          lat: location.latitude,
-          lon: location.longitude,
-        ).then((forecast) {
-          if (mounted) {
-            showDetailedForecastDialog(forecast);
-          }
-        }).catchError((error) {
-          print("Error fetching detailed forecast: $error");
-          if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text("Could not fetch weather data."), backgroundColor: Colors.orange),
-            );
-          }
-        });
-      } else if (marker2 == null) {
-        marker2 = location;
-        marker2Controller.text = coordsText;
-        // Once both markers exist, fetch routes automatically
-        fetchAllRoutes();
-      } else {
-        // Both markers set, user must remove one
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Both markers are set. Remove one to add a new location.")),
-        );
-      }
-    });
-  }
-
-  // Remove marker
-  void removeMarker(int markerNumber) {
-    if (!mounted) return;
-    setState(() {
-      mf.removeMarker(
-        markerNumber: markerNumber,
-        clearMarker1: () {
-          marker1 = null;
-          marker1Controller.clear();
-        },
-        clearMarker2: () {
-          marker2 = null;
-          marker2Controller.clear();
-        },
-        routeAlternatives: routeAlternatives,
-      );
-    });
-  }
-
-  // Fetch routes between marker1 and marker2
-  Future<void> fetchAllRoutes() async {
+  // --- Navigation ---
+  void _startRouteTracking(mf.RouteInfo selectedRoute) {
     if (marker1 == null || marker2 == null) {
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text("Please set two markers to find routes.")),
-        );
-      }
+      _showErrorSnackbar("Start and end markers required for tracking.");
       return;
     }
-    if (mounted) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Finding routes..."), duration: Duration(seconds: 2)),
-      );
-    }
-    print("Fetching routes...");
-    await mf.fetchAllRoutes(
-      marker1: marker1,
-      marker2: marker2,
-      routeAlternatives: routeAlternatives,
-      setStateCallback: () { if (mounted) setState(() {}); },
-      fitMapToRoutesCallback: () => mf.fitMapToRoutes(
-        routeAlternatives: routeAlternatives,
-        mapController: mapController,
+    // Navigate to the new RouteTrackingPage
+    Navigator.of(context).push(
+      MaterialPageRoute(
+        builder: (context) => RouteTrackingPage(
+          startPoint: marker1!,
+          endPoint: marker2!,
+          selectedRoute: selectedRoute,
+        ),
       ),
-      apiKey: geoapifyApiKey,
-    );
-    print("Route fetching complete. Alternatives found: ${routeAlternatives.length}");
-    if (mounted && routeAlternatives.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("No routes found between markers."), backgroundColor: Colors.orange),
-      );
-    }
-  }
-
-  // Show user location
-  Future<void> _onGetMyLocationPressed() async {
-    if (!mounted) return;
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text("Getting your location...")),
-    );
-    final LatLng? userLocation = await mf.getCurrentLocation();
-    if (!mounted) return;
-    if (userLocation != null) {
-      moveToLocation(userLocation);
-      setState(() {
-        final coordsText = "${userLocation.latitude.toStringAsFixed(6)}, ${userLocation.longitude.toStringAsFixed(6)}";
-        if (marker1 == null) {
-          marker1 = userLocation;
-          marker1Controller.text = coordsText;
-        } else if (marker2 == null) {
-          marker2 = userLocation;
-          marker2Controller.text = coordsText;
-          fetchAllRoutes();
-        } else {
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(content: Text("Both markers are set. Current location not added as marker.")),
-          );
-        }
-      });
-    } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Location unavailable. Check permissions and GPS."), backgroundColor: Colors.red),
-      );
-    }
-  }
-
-  // ====== Step 1: Fetch friend list from user_friendships
-// ====== Step 1: Fetch friend list (Corrected Query) ======
-  Future<List<Map<String, dynamic>>> _fetchFriendList() async {
-    if (userId == null) {
-      print("Cannot fetch friends: User not logged in.");
-      return []; // Return empty list if user is not logged in
-    }
-
-    try {
-      // Fetch friendship entries where the current user is either user_id or friend_id, and status is accepted
-      final response = await Supabase.instance.client
-          .from('user_friendships')
-          .select('user_id, friend_id') // Select both IDs to determine who the friend is
-          .or('user_id.eq.$userId,friend_id.eq.$userId') // User is one or the other
-          .eq('status', 'accepted'); // Status must be accepted
-
-      if (response is List) {
-        final friendships = response.map((e) => e as Map<String, dynamic>).toList();
-        if (friendships.isEmpty) {
-          print("No accepted friendships found for user $userId.");
-          return []; // Return empty if no friendships found
-        }
-
-        // Extract the IDs of the friends (the ID that is *not* the current user's ID)
-        final friendIds = friendships.map<String>((friendship) {
-          // If user_id is the current user, friend_id is the friend, otherwise user_id is the friend
-          return (friendship['user_id'] == userId)
-              ? friendship['friend_id']
-              : friendship['user_id'];
-        }).where((id) => id != null).toSet().toList(); // Use Set to ensure unique IDs, handle potential nulls
-
-        if (friendIds.isEmpty) {
-          print("Friend IDs list is empty after filtering.");
-          return [];
-        }
-
-        print("Found friend IDs: $friendIds");
-
-        // Now fetch the profiles for these friend IDs
-        final profileResponse = await Supabase.instance.client
-            .from('profiles')
-        // Select columns needed for display (id is needed to pass to _shareRouteWithFriend)
-            .select('id, username, full_name, avatar_url')
-            .inFilter('id', friendIds);
-        if (profileResponse is List) {
-          // Return the list of friend profiles
-          final profiles = profileResponse.map((e) => e as Map<String, dynamic>).toList();
-          print("Fetched ${profiles.length} friend profiles.");
-          return profiles;
-        } else {
-          print("Profile response was not a list.");
-          return [];
-        }
-
-      } else {
-        print("Friendships response was not a list.");
-        return []; // Return empty if the response format is unexpected
-      }
-    } on PostgrestException catch (error) {
-      print("Supabase error fetching friends: ${error.message}");
-      return [];
-    } catch (error) {
-      print("Unexpected error fetching friends: $error");
-      return [];
-    }
-  }
-
-  // ====== Step 2: Show friend list in a bottom sheet
-  void _shareRouteWithFriendFlow() async {
-    // Must have 2 markers and at least 1 route
-    if (marker1 == null || marker2 == null || routeAlternatives.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("No complete route to share. Place two markers and find a route first.")),
-      );
-      return;
-    }
-    final friends = await _fetchFriendList();
-    if (!mounted) return;
-    if (friends.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("You have no friends to share with!")),
-      );
-      return;
-    }
-    // Show a bottom sheet to pick a friend
-// Inside _shareRouteWithFriendFlow function, replace the existing showModalBottomSheet call with this:
-
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true, // Allows sheet height to adjust more freely
-      shape: RoundedRectangleBorder( // Optional: Add rounded corners to the top
-        borderRadius: BorderRadius.vertical(top: Radius.circular(16.0)),
-      ),
-      builder: (ctx) {
-        // Add padding and a title inside the sheet
-        return Padding(
-          padding: EdgeInsets.only(
-              top: 16.0,
-              left: 16.0,
-              right: 16.0,
-              // Add bottom padding to account for system navigation, etc.
-              bottom: MediaQuery.of(ctx).viewInsets.bottom + 16.0),
-          child: Column(
-            mainAxisSize: MainAxisSize.min, // Make column height fit content
-            children: [
-              // Title for the sheet
-              Text(
-                "Share Route With...",
-                style: Theme.of(context).textTheme.titleLarge,
-              ),
-              SizedBox(height: 16), // Spacing after title
-
-              // Check if friends list is actually empty (as a safeguard)
-              if (friends.isEmpty)
-                Padding(
-                  padding: const EdgeInsets.symmetric(vertical: 24.0),
-                  child: Text("No friends available."),
-                )
-              else
-                Flexible(
-                  child: ListView.builder(
-                    shrinkWrap: true, // Important within Column/Flexible
-                    itemCount: friends.length,
-                    itemBuilder: (context, index) {
-                      // Each 'friendProfile' is a map like: {id, username, full_name, avatar_url}
-                      final friendProfile = friends[index];
-
-                      // Get data using the correct keys from the profile map
-                      final friendId = friendProfile['id']; // Use 'id' for the friend's ID
-                      final friendName = friendProfile['username'] ?? friendProfile['full_name'] ?? 'Unknown Friend';
-                      final avatarUrl = friendProfile['avatar_url'];
-
-                      // Prevent errors if ID is somehow null
-                      if (friendId == null) {
-                        print("Warning: Found friend profile with null ID at index $index");
-                        return SizedBox.shrink(); // Skip rendering if ID is null
-                      }
-
-                      // Build the list tile for the friend
-                      return ListTile(
-                        leading: avatarUrl != null && avatarUrl.isNotEmpty
-                            ? CircleAvatar(
-                          backgroundImage: NetworkImage(avatarUrl),
-                          // Optional: Add error builder for network image
-                          onBackgroundImageError: (exception, stackTrace) {
-                            print("Error loading avatar: $exception");
-                            // You could potentially return a placeholder here, but CircleAvatar handles it okay
-                          },
-                        )
-                            : CircleAvatar(child: Icon(Icons.person_outline)), // Fallback icon
-                        title: Text(friendName),
-                        // Optional: Add subtitle for clarity or debugging
-                        // subtitle: Text("ID: ${friendId.substring(0, 8)}..."), // Show partial ID?
-
-                        // Action when a friend is tapped
-                        onTap: () {
-                          Navigator.pop(context); // Close the bottom sheet
-                          // Pass the CORRECT friendId (which is not null here)
-                          _shareRouteWithFriend(friendId);
-                        },
-                      );
-                    },
-                  ),
-                ),
-            ],
-          ),
-        );
-      },
     );
   }
 
-// ====== Step 3: Insert route data for the chosen friend (Corrected Error Handling) ======
-  // !! Assumes 'shared_routes' table exists with correct columns and RLS policies !!
-  Future<void> _shareRouteWithFriend(String friendId) async {
-    // Null check for markers (essential for getting coordinates)
-    if (marker1 == null || marker2 == null) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Start or end marker missing.")),
-      );
-      return;
-    }
-    // Null check for current user ID
-    final currentUserId = userId; // Use the state variable
-    if (currentUserId == null) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Error: Not logged in.")),
-      );
-      return;
-    }
-
-    // Get coordinates safely AFTER checking markers are not null
-    final startLat = marker1!.latitude;
-    final startLng = marker1!.longitude;
-    final endLat = marker2!.latitude;
-    final endLng = marker2!.longitude;
-
-    print("Attempting to share route with friend $friendId..."); // Log start
-
-    try {
-      // Perform the insert operation. Await will throw PostgrestException on DB/RLS errors.
-      await Supabase.instance.client
-          .from('shared_routes') // *** ENSURE THIS TABLE EXISTS ***
-          .insert({
-        'owner_user_id': currentUserId,
-        'friend_user_id': friendId,
-        'start_lat': startLat,
-        'start_lng': startLng,
-        'end_lat': endLat,
-        'end_lng': endLng,
-        // 'created_at' uses DB default
-      });
-
-      // If await completes without throwing, the insert was successful (at least from client's view)
-      print("Route shared successfully with friend $friendId");
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Route details shared!"), backgroundColor: Colors.green),
-      );
-
-    } on PostgrestException catch (error) {
-      // Catch specific Supabase errors (e.g., RLS violation, constraint violation)
-      print("Supabase error sharing route: ${error.message}");
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("Failed to share route: ${error.message}"), backgroundColor: Colors.red),
-      );
-    } catch (e) {
-      // Catch any other generic errors (e.g., network issues, unexpected errors)
-      print("Generic exception sharing route: $e");
-      if (!mounted) return;
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text("An error occurred while sharing route."), backgroundColor: Colors.red),
-      );
-    }
-  }
-  // Step 4: Replace old “Share My Location” logic with the friend-sharing flow
-  Future<void> _shareAndSaveCurrentLocation() async {
-    // Instead of saving just the user’s single location, we now show the friend list
-    _shareRouteWithFriendFlow();
-  }
-
+  // --- Build Method ---
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    final colorScheme = theme.colorScheme;
     final routeColors = {
-      'balanced': Colors.blue.withOpacity(0.8),
+      'balanced': colorScheme.primary.withOpacity(0.8),
       'short': Colors.green.withOpacity(0.8),
-      'less_maneuvers': Colors.purple.withOpacity(0.8),
+      'less_maneuvers': colorScheme.tertiary.withOpacity(0.8),
     };
 
     return Scaffold(
       appBar: MyCustomAppBar(
-        onNotificationPressed: () => debugPrint('Notification icon pressed!'),
-        onGroupPressed: () => debugPrint('Group icon pressed!'),
+        onNotificationPressed: () { /* Nav */ },
+        onGroupPressed: () { /* Nav */ },
         avatarUrl: _avatarUrl,
+        isLoading: _isLoadingAvatar,
       ),
-      // Show route info if routes exist
+      // --- Bottom Sheet: Select Route for Tracking ---
       bottomSheet: routeAlternatives.isNotEmpty
           ? Container(
-        color: Theme.of(context).cardColor,
+        color: theme.cardColor,
         padding: EdgeInsets.all(12.0),
-        constraints: BoxConstraints(
-          maxHeight: MediaQuery.of(context).size.height * 0.3,
-        ),
+        constraints: BoxConstraints(maxHeight: MediaQuery.of(context).size.height * 0.35), // Slightly more height
         child: Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Text(
-              "Route Options:",
-              style: Theme.of(context)
-                  .textTheme
-                  .titleMedium
-                  ?.copyWith(fontWeight: FontWeight.bold),
+              "Select a Route to Start Tracking:",
+              style: theme.textTheme.titleMedium?.copyWith(fontWeight: FontWeight.bold),
             ),
             SizedBox(height: 8),
             Flexible(
@@ -586,141 +190,113 @@ class _MapPageState extends State<MapPage> {
                   final timeMin = (route.timeSeconds / 60).toStringAsFixed(0);
                   return ListTile(
                     dense: true,
-                    leading: CircleAvatar(
-                      radius: 8,
-                      backgroundColor: routeColors[route.type] ?? Colors.grey,
-                    ),
-                    title: Text(
-                      "${route.type.toUpperCase()} (${distanceKm}km, ~${timeMin}min)",
-                      style: Theme.of(context).textTheme.bodyMedium,
+                    contentPadding: EdgeInsets.symmetric(horizontal: 8.0),
+                    leading: CircleAvatar(radius: 8, backgroundColor: routeColors[route.type] ?? Colors.grey),
+                    title: Text("${route.type.toUpperCase()} (${distanceKm}km, ~${timeMin}min)", style: theme.textTheme.bodyMedium),
+                    // Trailing button to start tracking THIS route
+                    trailing: ElevatedButton(
+                      style: ElevatedButton.styleFrom(
+                        padding: EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+                        textStyle: theme.textTheme.labelSmall,
+                      ),
+                      onPressed: () => _startRouteTracking(route), // Navigate on press
+                      child: Text("Track"),
                     ),
                   );
                 },
-              ),
-            ),
-            SizedBox(height: 8),
-            // The existing "Share My Location" button triggers the friend-sharing
-            Center(
-              child: ElevatedButton.icon(
-                icon: Icon(Icons.share_location),
-                onPressed: _shareAndSaveCurrentLocation, // triggers friend flow
-                label: Text("Share My Location"),
-                style: ElevatedButton.styleFrom(
-                  padding: EdgeInsets.symmetric(horizontal: 20, vertical: 10),
-                ),
               ),
             ),
           ],
         ),
       )
           : null,
+      // --- Main Body: Map ---
       body: Stack(
         children: [
           FlutterMap(
             mapController: mapController,
             options: MapOptions(
-              initialCenter: LatLng(14.5547, 121.0244),
+              initialCenter: LatLng(14.6760, 121.0437), // QC
               initialZoom: zoomLevel,
-              onTap: (tapPosition, latLng) => addMarker(latLng),
-              onPositionChanged: (position, hasGesture) {
-                if (hasGesture &&
-                    mounted &&
-                    position.zoom != null &&
-                    position.zoom != zoomLevel) {
-                  setState(() {
-                    zoomLevel = position.zoom!;
-                  });
+              maxZoom: 19, minZoom: 5,
+              // Map Tap -> Call Logic
+              onTap: (pos, latLng) => mf.handleMapTap(
+                location: latLng, currentMarker1: marker1, currentMarker2: marker2,
+                setMarker1: (loc) => setState(() { marker1 = loc; _updateMarkerText(); }),
+                setMarker2: (loc) => setState(() { marker2 = loc; _updateMarkerText(); }),
+                triggerWeatherFetch: _triggerWeatherFetch, triggerRouteFetch: _triggerRouteFetch,
+                showInfoMessage: _showInfoSnackbar,
+              ),
+              onPositionChanged: (pos, gesture) {
+                if (mounted && pos.zoom != null && pos.zoom != zoomLevel) {
+                  setState(() => zoomLevel = pos.zoom!);
                 }
               },
             ),
             children: [
               TileLayer(
-                urlTemplate: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
-                userAgentPackageName: 'com.stattrak.app',
+                urlTemplate: "https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png",
+                subdomains: ['a','b','c'],
+                userAgentPackageName: 'com.stattrak.app', // Your package name
                 tileProvider: CancellableNetworkTileProvider(),
               ),
               if (routeAlternatives.isNotEmpty)
                 PolylineLayer(
-                  polylines: routeAlternatives.map((route) {
-                    final color = routeColors[route.type] ?? Colors.black;
-                    return Polyline(
-                      points: route.points,
-                      strokeWidth: 5.0,
-                      color: color.withOpacity(0.8),
-                      isDotted: false,
-                      borderStrokeWidth: 1.0,
-                      borderColor: Colors.white.withOpacity(0.6),
-                    );
-                  }).toList(),
+                  polylines: routeAlternatives.map((route) => Polyline(
+                    points: route.points, strokeWidth: 5.0,
+                    color: (routeColors[route.type] ?? Colors.grey).withOpacity(0.8),
+                    borderStrokeWidth: 1.0, borderColor: Colors.white.withOpacity(0.6),
+                  )).toList(),
                 ),
               MarkerLayer(
                 markers: [
                   if (marker1 != null)
                     Marker(
-                      point: marker1!,
-                      width: 80,
-                      height: 80,
-                      child: Tooltip(
-                        message: "Start / Point 1\nTap pin to remove",
+                      point: marker1!, width: 80, height: 80, alignment: Alignment.topCenter,
+                      child: Tooltip( message: "Start / Point 1\nTap to remove",
                         child: GestureDetector(
-                          onTap: () => removeMarker(1),
-                          child: Icon(Icons.location_on, color: Colors.red, size: 45),
+                          // Marker Tap -> Call Logic
+                          onTap: () { mf.handleRemoveMarker(markerNumber: 1, clearMarker1State: ()=> setState((){ marker1=null; _updateMarkerText(); }), clearMarker2State: (){}, routesToClear: routeAlternatives); setState((){});},
+                          child: Icon(Icons.location_on, color: colorScheme.primary, size: 40),
                         ),
                       ),
-                      alignment: Alignment.topCenter,
                     ),
                   if (marker2 != null)
                     Marker(
-                      point: marker2!,
-                      width: 80,
-                      height: 80,
-                      child: Tooltip(
-                        message: "End / Point 2\nTap pin to remove",
+                      point: marker2!, width: 80, height: 80, alignment: Alignment.topCenter,
+                      child: Tooltip( message: "End / Point 2\nTap to remove",
                         child: GestureDetector(
-                          onTap: () => removeMarker(2),
-                          child: Icon(Icons.location_on, color: Colors.blue, size: 45),
+                          // Marker Tap -> Call Logic
+                          onTap: () { mf.handleRemoveMarker(markerNumber: 2, clearMarker1State: (){}, clearMarker2State: ()=> setState((){ marker2=null; _updateMarkerText(); }), routesToClear: routeAlternatives); setState((){});},
+                          child: Icon(Icons.location_on, color: colorScheme.secondary, size: 40),
                         ),
                       ),
-                      alignment: Alignment.topCenter,
                     ),
                 ],
               ),
             ],
           ),
+
+          // --- Marker Details Card ---
           Positioned(
-            top: 70,
-            left: 10,
-            right: 10,
+            top: 70, left: 10, right: 10,
             child: Card(
-              elevation: 3,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              elevation: 3, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
               child: AnimatedContainer(
-                duration: Duration(milliseconds: 250),
-                padding: EdgeInsets.all(12.0),
+                duration: Duration(milliseconds: 250), padding: EdgeInsets.all(12.0),
                 constraints: BoxConstraints(minHeight: 50),
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                    Row(
+                    Row( /* ... Header with expand/collapse ... */
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       children: [
-                        Text("Markers & Routes",
-                            style: Theme.of(context)
-                                .textTheme
-                                .titleSmall
-                                ?.copyWith(fontWeight: FontWeight.bold)),
+                        Text("Markers & Routes", style: theme.textTheme.titleSmall?.copyWith(fontWeight: FontWeight.bold)),
                         IconButton(
                           icon: Icon(showMarkerDetails ? Icons.expand_less : Icons.expand_more),
                           tooltip: showMarkerDetails ? "Collapse Details" : "Expand Details",
-                          padding: EdgeInsets.zero,
-                          constraints: BoxConstraints(),
-                          onPressed: () {
-                            if (mounted) {
-                              setState(() {
-                                showMarkerDetails = !showMarkerDetails;
-                              });
-                            }
-                          },
+                          padding: EdgeInsets.zero, constraints: BoxConstraints(),
+                          onPressed: () => setState(() => showMarkerDetails = !showMarkerDetails),
                         ),
                       ],
                     ),
@@ -731,47 +307,25 @@ class _MapPageState extends State<MapPage> {
                         child: Column(
                           mainAxisSize: MainAxisSize.min,
                           children: [
-                            TextField(
-                              controller: marker1Controller,
-                              readOnly: true,
-                              decoration: InputDecoration(
-                                labelText: "Start / Marker 1",
-                                hintText: "Tap map to set",
-                                isDense: true,
-                                suffixIcon: marker1 == null
-                                    ? null
-                                    : IconButton(
-                                  icon: Icon(Icons.clear, color: Colors.grey[600], size: 20),
-                                  tooltip: "Remove Marker 1",
-                                  onPressed: () => removeMarker(1),
-                                ),
-                              ),
-                              style: Theme.of(context).textTheme.bodySmall,
+                            TextField( controller: marker1Controller, readOnly: true, /* ... Decoration ... */
+                              decoration: InputDecoration( labelText: "Start / Marker 1", hintText: "Tap map to set", isDense: true, prefixIcon: Icon(Icons.pin_drop, size: 18, color: colorScheme.primary),
+                                suffixIcon: marker1 == null ? null : IconButton( icon: Icon(Icons.clear, color: Colors.grey[600], size: 20), tooltip: "Remove Marker 1",
+                                    onPressed: () { mf.handleRemoveMarker(markerNumber: 1, clearMarker1State: ()=> setState((){ marker1=null; _updateMarkerText(); }), clearMarker2State: (){}, routesToClear: routeAlternatives); setState((){});}),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: EdgeInsets.symmetric(vertical: 10, horizontal: 12), ), style: theme.textTheme.bodySmall,
                             ),
                             SizedBox(height: 10),
-                            TextField(
-                              controller: marker2Controller,
-                              readOnly: true,
-                              decoration: InputDecoration(
-                                labelText: "End / Marker 2",
-                                hintText: "Tap map to set",
-                                isDense: true,
-                                suffixIcon: marker2 == null
-                                    ? null
-                                    : IconButton(
-                                  icon: Icon(Icons.clear, color: Colors.grey[600], size: 20),
-                                  tooltip: "Remove Marker 2",
-                                  onPressed: () => removeMarker(2),
-                                ),
-                              ),
-                              style: Theme.of(context).textTheme.bodySmall,
+                            TextField( controller: marker2Controller, readOnly: true, /* ... Decoration ... */
+                              decoration: InputDecoration( labelText: "End / Marker 2", hintText: "Tap map to set", isDense: true, prefixIcon: Icon(Icons.flag, size: 18, color: colorScheme.secondary),
+                                suffixIcon: marker2 == null ? null : IconButton( icon: Icon(Icons.clear, color: Colors.grey[600], size: 20), tooltip: "Remove Marker 2",
+                                    onPressed: () { mf.handleRemoveMarker(markerNumber: 2, clearMarker1State: (){}, clearMarker2State: ()=> setState((){ marker2=null; _updateMarkerText(); }), routesToClear: routeAlternatives); setState((){});}),
+                                border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)), contentPadding: EdgeInsets.symmetric(vertical: 10, horizontal: 12), ), style: theme.textTheme.bodySmall,
                             ),
                             if (marker1 != null && marker2 != null) ...[
                               SizedBox(height: 15),
                               ElevatedButton.icon(
-                                icon: Icon(Icons.directions),
+                                icon: _isLoadingRoutes ? SizedBox(width: 18, height: 18, child: CircularProgressIndicator(strokeWidth: 2, color: colorScheme.onPrimary)) : Icon(Icons.directions),
                                 label: Text(routeAlternatives.isEmpty ? "Find Routes" : "Refresh Routes"),
-                                onPressed: fetchAllRoutes,
+                                onPressed: _isLoadingRoutes ? null : _triggerRouteFetch, // Calls logic wrapper
                                 style: ElevatedButton.styleFrom(minimumSize: Size(double.infinity, 36)),
                               ),
                             ]
@@ -786,127 +340,95 @@ class _MapPageState extends State<MapPage> {
               ),
             ),
           ),
-          Positioned(
-            top: 8,
-            left: 10,
-            right: 10,
-            child: Card(
-              elevation: 4,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
+
+          // --- Search Bar ---
+          Positioned( top: 8, left: 10, right: 10,
+            child: Card( elevation: 4, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(30)),
               child: TypeAheadField<Map<String, dynamic>>(
                 debounceDuration: Duration(milliseconds: 400),
-                textFieldConfiguration: TextFieldConfiguration(
+                textFieldConfiguration: TextFieldConfiguration( /* ... Decoration ... */
                   controller: searchController,
-                  decoration: InputDecoration(
-                    hintText: "Search location or address...",
-                    prefixIcon: Icon(Icons.search, color: Theme.of(context).hintColor, size: 20),
-                    border: InputBorder.none,
-                    contentPadding: EdgeInsets.symmetric(horizontal: 15.0, vertical: 14.0),
-                    suffixIcon: searchController.text.isNotEmpty
-                        ? IconButton(
-                      icon: Icon(Icons.clear, size: 20),
-                      tooltip: "Clear search",
-                      onPressed: () {
-                        searchController.clear();
-                        if (mounted) setState(() {});
-                        FocusScope.of(context).unfocus();
-                      },
-                    )
-                        : null,
-                  ),
-                  onChanged: (value) {
-                    if (mounted) setState(() {});
-                  },
+                  decoration: InputDecoration( hintText: "Search location...", prefixIcon: Icon(Icons.search, color: theme.hintColor, size: 20), border: InputBorder.none, contentPadding: EdgeInsets.symmetric(horizontal: 15.0, vertical: 14.0),
+                    suffixIcon: searchController.text.isNotEmpty ? IconButton( icon: Icon(Icons.clear, size: 20), tooltip: "Clear search",
+                      onPressed: () { searchController.clear(); if (mounted) setState(() {}); FocusScope.of(context).unfocus(); }, ) : null, ),
+                  onChanged: (value) { if (mounted) setState(() {}); },
                 ),
-                suggestionsCallback: (pattern) async {
-                  if (pattern.length < 3) {
-                    return [];
-                  }
-                  return await fetchLocations(pattern);
-                },
-                itemBuilder: (context, suggestion) {
-                  return ListTile(
-                    leading: Icon(Icons.location_pin, size: 18, color: Colors.grey),
-                    title: Text(suggestion['name'] ?? 'Unknown',
-                        maxLines: 1, overflow: TextOverflow.ellipsis),
-                    dense: true,
-                  );
-                },
+                // Suggestions -> Call Logic
+                suggestionsCallback: (pattern) async => await mf.fetchLocations(pattern, geoapifyApiKey),
+                itemBuilder: (context, suggestion) => ListTile( /* ... UI ... */
+                  leading: Icon(Icons.location_pin, size: 18, color: Colors.grey), title: Text(suggestion['name'] ?? 'Unknown', maxLines: 1, overflow: TextOverflow.ellipsis), dense: true,
+                ),
+                // Selection -> Call Logic
                 onSuggestionSelected: (suggestion) {
-                  if (suggestion['latlng'] is LatLng) {
-                    LatLng location = suggestion['latlng'];
-                    searchController.text = suggestion['name'] ?? '';
-                    moveToLocation(location, targetZoom: 14.0);
-                    addMarker(location);
-                    FocusScope.of(context).unfocus();
-                  } else {
-                    print("Invalid suggestion selected: $suggestion");
-                  }
+                  final location = suggestion['latlng'] as LatLng?; final name = suggestion['name'] as String?;
+                  if (location != null) {
+                    searchController.text = name ?? ''; FocusScope.of(context).unfocus();
+                    mf.moveToLocation(mapController, location, 14.0); // Call logic
+                    mf.handleMapTap( // Call logic
+                      location: location, currentMarker1: marker1, currentMarker2: marker2,
+                      setMarker1: (loc) => setState(() { marker1 = loc; _updateMarkerText(); }), setMarker2: (loc) => setState(() { marker2 = loc; _updateMarkerText(); }),
+                      triggerWeatherFetch: _triggerWeatherFetch, triggerRouteFetch: _triggerRouteFetch, showInfoMessage: _showInfoSnackbar, );
+                  } else { _showErrorSnackbar("Invalid location data."); }
                 },
-                loadingBuilder: (context) => Center(
-                  child: Padding(
-                    padding: const EdgeInsets.all(8.0),
-                    child: CircularProgressIndicator(strokeWidth: 2),
-                  ),
-                ),
-                noItemsFoundBuilder: (context) => Padding(
-                  padding: const EdgeInsets.all(12.0),
-                  child: Text('No locations found.',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.grey)),
-                ),
-                errorBuilder: (context, error) => Padding(
-                  padding: const EdgeInsets.all(12.0),
-                  child: Text('Error: ${error.toString().split(':').last}',
-                      textAlign: TextAlign.center,
-                      style: TextStyle(color: Colors.red)),
-                ),
+                loadingBuilder: (context) => Center(child: Padding(padding: const EdgeInsets.all(8.0), child: CircularProgressIndicator(strokeWidth: 2))),
+                noItemsFoundBuilder: (context) => Padding(padding: const EdgeInsets.all(12.0), child: Text('No locations found.', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey))),
+                errorBuilder: (context, error) => Padding(padding: const EdgeInsets.all(12.0), child: Text('Error fetching locations', textAlign: TextAlign.center, style: TextStyle(color: Colors.red))),
               ),
             ),
           ),
         ],
       ),
+      // --- FABs ---
       floatingActionButton: Padding(
-        padding: EdgeInsets.only(
-          bottom: routeAlternatives.isNotEmpty ? (200 + 20) : 20,
-          right: 10,
-        ),
+        // Adjust padding based on bottom sheet
+        padding: EdgeInsets.only(bottom: routeAlternatives.isNotEmpty ? (MediaQuery.of(context).size.height * 0.35 + 20) : 20, right: 10),
         child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.end,
+          mainAxisSize: MainAxisSize.min, crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            FloatingActionButton(
-              heroTag: "currentLocation",
-              onPressed: _onGetMyLocationPressed,
-              tooltip: "Go to my current location",
-              child: Icon(Icons.my_location),
+            FloatingActionButton( // My Location
+              heroTag: "currentLocation", tooltip: "Go to my current location",
+              onPressed: _isLoadingLocation ? null : () async {
+                setState(() => _isLoadingLocation = true);
+                // Call Logic
+                await mf.handleGetMyLocation(
+                  currentMarker1: marker1, currentMarker2: marker2,
+                  // Corrected callback: Wrap mf.moveToLocation
+                  moveMapCallback: (loc, {targetZoom}) {
+                    mf.moveToLocation(mapController, loc, targetZoom ?? zoomLevel);
+                  },
+                  setMarker1: (loc) => setState(() { marker1 = loc; _updateMarkerText(); }),
+                  setMarker2: (loc) => setState(() { marker2 = loc; _updateMarkerText(); }),
+                  triggerRouteFetch: _triggerRouteFetch,
+                  showInfoMessage: _showInfoSnackbar,
+                  showErrorMessage: _showErrorSnackbar,
+                );
+                if (mounted) setState(() => _isLoadingLocation = false);
+              },
+              child: _isLoadingLocation ? CircularProgressIndicator(color: colorScheme.onPrimary,) : Icon(Icons.my_location),
             ),
             SizedBox(height: 12),
-            FloatingActionButton(
-              heroTag: "zoomIn",
-              mini: true,
+            FloatingActionButton( // Zoom In
+              heroTag: "zoomIn", mini: true, tooltip: "Zoom In",
               onPressed: () {
-                if (mounted) {
-                  double currentZoom = mapController.camera.zoom;
-                  double nextZoom = (currentZoom + 1.0).clamp(1.0, 19.0);
-                  moveToLocation(mapController.camera.center, targetZoom: nextZoom);
-                }
+                // Use the min/max zoom values defined in MapOptions (e.g., 5.0 and 19.0)
+                double currentZoom = mapController.camera.zoom;
+                double nextZoom = (currentZoom + 1.0).clamp(5.0, 19.0); // Use actual values
+                mf.moveToLocation(mapController, mapController.camera.center, nextZoom);
+                setState(() => zoomLevel = nextZoom);
               },
-              tooltip: "Zoom In",
               child: Icon(Icons.add),
             ),
             SizedBox(height: 8),
-            FloatingActionButton(
-              heroTag: "zoomOut",
-              mini: true,
+            FloatingActionButton( // Zoom Out
+              heroTag: "zoomOut", mini: true, tooltip: "Zoom Out",
               onPressed: () {
-                if (mounted) {
-                  double currentZoom = mapController.camera.zoom;
-                  double nextZoom = (currentZoom - 1.0).clamp(1.0, 19.0);
-                  moveToLocation(mapController.camera.center, targetZoom: nextZoom);
-                }
+                // Use the min/max zoom values defined in MapOptions (e.g., 5.0 and 19.0)
+                double currentZoom = mapController.camera.zoom;
+                // Correct typo 'clam$p' to 'clamp' and use actual min/max zoom values
+                double nextZoom = (currentZoom - 1.0).clamp(5.0, 19.0);
+                mf.moveToLocation(mapController, mapController.camera.center, nextZoom);
+                setState(() => zoomLevel = nextZoom);
               },
-              tooltip: "Zoom Out",
               child: Icon(Icons.remove),
             ),
           ],

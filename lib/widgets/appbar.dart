@@ -21,7 +21,7 @@ class MyCustomAppBar extends StatelessWidget implements PreferredSizeWidget {
     required this.onGroupPressed,
     this.lat,
     this.long,
-    this.avatarUrl,
+    this.avatarUrl, required bool isLoading,
   }) : super(key: key);
 
   @override

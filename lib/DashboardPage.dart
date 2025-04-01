@@ -25,6 +25,7 @@ class _DashboardPageState extends State<DashboardPage> {
   double? _latitude;
   double? _longitude;
   String? _avatarUrl;
+  bool _isLoadingAvatar = true;
 
   @override
   void initState() {
@@ -40,7 +41,13 @@ class _DashboardPageState extends State<DashboardPage> {
   Future<void> _fetchUserAvatar() async {
     final supabase = Supabase.instance.client;
     final user = supabase.auth.currentUser;
-    if (user == null) return;
+    if (user == null) {
+      if (mounted) setState(() => _isLoadingAvatar = false); // Stop loading if no user
+      return;
+    }
+
+    // Keep isLoadingAvatar true initially (already set in declaration)
+    // setState(() => _isLoadingAvatar = true); // Not needed if initialized to true
 
     try {
       final response = await supabase
@@ -49,13 +56,21 @@ class _DashboardPageState extends State<DashboardPage> {
           .eq('id', user.id)
           .single();
 
-      if (response != null && response['avatar_url'] != null) {
+      if (mounted) { // Check mounted after await
         setState(() {
-          _avatarUrl = response['avatar_url'] as String;
+          if (response != null && response['avatar_url'] != null) {
+            _avatarUrl = response['avatar_url'] as String;
+          }
+          _isLoadingAvatar = false; // <-- Set to false after fetch attempt
         });
       }
     } catch (e) {
       debugPrint('Error fetching user avatar: $e');
+      if (mounted) {
+        setState(() {
+          _isLoadingAvatar = false; // <-- Also set to false on error
+        });
+      }
     }
   }
 
@@ -90,6 +105,7 @@ class _DashboardPageState extends State<DashboardPage> {
     return Scaffold(
       appBar: MyCustomAppBar(
         avatarUrl: _avatarUrl,
+        isLoading: _isLoadingAvatar,
         onNotificationPressed: () {
           setState(() {
             _activeSidebar = (_activeSidebar == SidebarType.notification)
