@@ -78,7 +78,7 @@ class _RouteTrackingPageState extends State<RouteTrackingPage> {
       onError: _showErrorSnackbar,
       // Optional: Adjust accuracy/distance filter if needed
       accuracy: LocationAccuracy.high,
-      distanceFilter: 3,
+      distanceFilter: 1,
     );
   }
 
