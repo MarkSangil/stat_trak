@@ -8,7 +8,6 @@ import 'package:stattrak/Sign-upPage.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
-  await dotenv.load(fileName: "assets/config/.env");
 
   final supabaseProvider = SupabaseProvider();
   await supabaseProvider.init();

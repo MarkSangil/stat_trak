@@ -17,8 +17,8 @@ class SupabaseProvider with ChangeNotifier {
   }
 
   Future<void> init() async {
-    final supabaseUrl = dotenv.env['SUPABASE_URL']!;
-    final supabaseAnonKey = dotenv.env['SUPABASE_ANON_KEY']!;
+    const supabaseUrl = 'https://vxucbsuyrfgfemjbseoy.supabase.co';
+    const supabaseAnonKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InZ4dWNic3V5cmZnZmVtamJzZW95Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDE1OTI1NzUsImV4cCI6MjA1NzE2ODU3NX0.IhGFySWQ7wDwCBoaJwrLwkzbGCoOuKR1HBpSbsd9mRY';
 
     await Supabase.initialize(
       url: supabaseUrl,

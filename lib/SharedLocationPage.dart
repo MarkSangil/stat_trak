@@ -77,7 +77,7 @@ class _SharedRoutePageState extends State<SharedRoutePage> {
         startLng: startLng,
         endLat: endLat,
         endLng: endLng,
-        apiKey: dotenv.env['GEOAPIFY_API_KEY'] ?? '',
+        apiKey: 'b443d51cf9934664828c14742e5476d9',
       );
 
       setState(() {
