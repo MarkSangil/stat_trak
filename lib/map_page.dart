@@ -13,7 +13,7 @@ import 'package:stattrak/widgets/appbar.dart';    // Ensure path is correct
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 // Ensure API Key is loaded
-final String geoapifyApiKey = dotenv.env['GEOAPIFY_API_KEY'] ?? "MISSING_GEOAPIFY_KEY";
+final String geoapifyApiKey = 'b443d51cf9934664828c14742e5476d9';
 
 class MapPage extends StatefulWidget {
   @override
@@ -46,7 +46,7 @@ class _MapPageState extends State<MapPage> {
   void initState() {
     super.initState();
     _fetchInitialData();
-    if (geoapifyApiKey == "MISSING_GEOAPIFY_KEY") {
+    if (geoapifyApiKey == 'MISSING_GEOAPIFY_KEY') {
       WidgetsBinding.instance.addPostFrameCallback((_) {
         _showErrorSnackbar("Geoapify API Key is missing!");
       });
@@ -101,7 +101,7 @@ class _MapPageState extends State<MapPage> {
         routeListToUpdate: routeAlternatives,
         updateStateCallback: () { if (mounted) setState(() => _isLoadingRoutes = false); },
         fitMapCallback: () => mf.fitMapToRoutes(routeAlternatives: routeAlternatives, mapController: mapController),
-        apiKey: geoapifyApiKey,
+        apiKey: 'b443d51cf9934664828c14742e5476d9',
         showInfoMessage: _showInfoSnackbar,
         showErrorMessage: _showErrorSnackbar,
       ).catchError((e){ if (mounted) setState(() => _isLoadingRoutes = false); });

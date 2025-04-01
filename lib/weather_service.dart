@@ -71,7 +71,7 @@ class DailyForecast {
 
 class WeatherService {
 
-  static final String? _apiKey = dotenv.env['WEATHER_API_KEY'];
+  static final String? _apiKey = '81a7e2e158c24c8339a1b849c9343fb5';
 
   static Future<WeatherData> fetchWeatherByLatLon({
     required double lat,
