@@ -497,7 +497,7 @@ Future<List<RouteInfo>> fetchAllRoutesForTwoPoints({
   String mode = 'drive',
   Function(String)? showErrorMessage,
 }) async {
-  if (apiKey.isEmpty || apiKey == "b443d51cf9934664828c14742e5476d9") {
+  if (apiKey.isEmpty || apiKey == "YOUR_GEOAPIFY_API_KEY") {
     print("Geoapify API Key is missing or invalid.");
     showErrorMessage?.call("API Key is missing, cannot fetch route geometry.");
     return [];
@@ -733,5 +733,31 @@ Future<void> syncProgressWithSupabase({
     print("Successfully synced with Supabase: $progress%");
   } catch (e) {
     print("Supabase sync error: $e");
+  }
+}
+
+Future<void> updateSharedRouteLiveProgress({
+  required String ownerUserId,
+  required String friendUserId,
+  required LatLng currentLocation,
+  required double progress,
+}) async {
+  try {
+    await Supabase.instance.client
+        .from('shared_routes')
+        .update({
+      'current_lat': currentLocation.latitude,
+      'current_lng': currentLocation.longitude,
+      'progress': progress,
+      'created_at': DateTime.now().toIso8601String(),
+    })
+        .match({
+      'owner_user_id': ownerUserId,
+      'friend_user_id': friendUserId,
+    });
+
+    print("✅ Shared route live progress updated.");
+  } catch (e) {
+    print("❌ Failed to update shared route live progress: $e");
   }
 }
