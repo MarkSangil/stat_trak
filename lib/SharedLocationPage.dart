@@ -1,10 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_map/flutter_map.dart';
 import 'package:latlong2/latlong.dart';
-import 'package:stattrak/models/map_page_functions.dart' as mf;
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:flutter_map_cancellable_tile_provider/flutter_map_cancellable_tile_provider.dart';
+import 'package:stattrak/models/map_page_functions.dart' as mf;
+import 'dart:async';
 
 class SharedRoutePage extends StatefulWidget {
   final String routeId;
@@ -20,20 +20,29 @@ class _SharedRoutePageState extends State<SharedRoutePage> {
 
   LatLng? _startMarker;
   LatLng? _endMarker;
+  LatLng? _liveMarker;
+  double? _progress;
+  String? _avatarUrl;
+  List<mf.RouteInfo> _routeAlternatives = [];
+
   bool _isLoading = true;
   String? _errorMsg;
 
-  // Holds the fetched route alternatives from the routing API.
-  List<mf.RouteInfo> _routeAlternatives = [];
+  RealtimeChannel? _channel;
 
   @override
   void initState() {
     super.initState();
     _fetchRouteData();
+    _subscribeToLiveUpdates();
   }
 
-  // Fetch the saved start/end coordinates from Supabase,
-  // then re-fetch the route geometry using fetchAllRoutesForTwoPoints.
+  @override
+  void dispose() {
+    _channel?.unsubscribe();
+    super.dispose();
+  }
+
   Future<void> _fetchRouteData() async {
     setState(() {
       _isLoading = true;
@@ -43,7 +52,7 @@ class _SharedRoutePageState extends State<SharedRoutePage> {
     try {
       final response = await Supabase.instance.client
           .from('shared_routes')
-          .select('start_lat, start_lng, end_lat, end_lng')
+          .select('start_lat, start_lng, end_lat, end_lng, current_lat, current_lng, progress, owner_user_id')
           .eq('id', widget.routeId)
           .maybeSingle();
 
@@ -60,9 +69,27 @@ class _SharedRoutePageState extends State<SharedRoutePage> {
       final endLat = response['end_lat'] as double?;
       final endLng = response['end_lng'] as double?;
 
+      _liveMarker = (response['current_lat'] != null && response['current_lng'] != null)
+          ? LatLng(response['current_lat'], response['current_lng'])
+          : null;
+
+      _progress = response['progress'] as double?;
+
+      final ownerUserId = response['owner_user_id'] as String?;
+
+      if (ownerUserId != null) {
+        final profile = await Supabase.instance.client
+            .from('profiles')
+            .select('avatar_url')
+            .eq('id', ownerUserId)
+            .maybeSingle();
+
+        _avatarUrl = profile?['avatar_url'] as String?;
+      }
+
       if (startLat == null || startLng == null || endLat == null || endLng == null) {
         setState(() {
-          _errorMsg = "Invalid or missing coordinates in DB for route ID: ${widget.routeId}";
+          _errorMsg = "Invalid or missing coordinates in DB.";
           _isLoading = false;
         });
         return;
@@ -71,7 +98,6 @@ class _SharedRoutePageState extends State<SharedRoutePage> {
       _startMarker = LatLng(startLat, startLng);
       _endMarker = LatLng(endLat, endLng);
 
-      // Re-fetch the route geometry from your routing API.
       final fetchedRoutes = await mf.fetchAllRoutesForTwoPoints(
         startLat: startLat,
         startLng: startLng,
@@ -84,22 +110,41 @@ class _SharedRoutePageState extends State<SharedRoutePage> {
         _routeAlternatives = fetchedRoutes;
         _isLoading = false;
       });
-    } on PostgrestException catch (error) {
+    } catch (e) {
       setState(() {
-        _errorMsg = "Supabase error: ${error.message}";
-        _isLoading = false;
-      });
-    } catch (error) {
-      setState(() {
-        _errorMsg = "Unexpected error: $error";
+        _errorMsg = "Error fetching route: $e";
         _isLoading = false;
       });
     }
   }
 
+  void _subscribeToLiveUpdates() {
+    _channel = Supabase.instance.client
+        .channel('public:shared_routes')
+        .onPostgresChanges(
+      event: PostgresChangeEvent.update,
+      schema: 'public',
+      table: 'shared_routes',
+      filter: PostgresChangeFilter(
+        type: PostgresChangeFilterType.eq,
+        column: 'id',
+        value: widget.routeId,
+      ),
+      callback: (payload) {
+        final data = payload.newRecord;
+        if (data != null && data['current_lat'] != null && data['current_lng'] != null) {
+          setState(() {
+            _liveMarker = LatLng(data['current_lat'], data['current_lng']);
+            _progress = data['progress'];
+          });
+          _mapController.move(_liveMarker!, _mapController.zoom);
+        }
+      },
+    ).subscribe();
+  }
+
   @override
   Widget build(BuildContext context) {
-    // Colors for different route types.
     final routeColors = {
       'balanced': Colors.blue.withOpacity(0.8),
       'short': Colors.green.withOpacity(0.8),
@@ -108,21 +153,17 @@ class _SharedRoutePageState extends State<SharedRoutePage> {
 
     return Scaffold(
       appBar: AppBar(
-        title: Text("Shared Route"),
+        title: Text("Live Shared Route"),
       ),
       body: _isLoading
           ? Center(child: CircularProgressIndicator())
           : _errorMsg != null
           ? Center(child: Text(_errorMsg!))
-          : (_startMarker == null || _endMarker == null)
-          ? Center(child: Text("Coordinates not found."))
           : FlutterMap(
         mapController: _mapController,
         options: MapOptions(
-          // Ensure the map starts at the first/starting endpoint
-          center: _startMarker!,
+          center: _startMarker ?? LatLng(0, 0),
           zoom: 13.0,
-          // Optional: disable rotation if you want
           interactionOptions: InteractionOptions(
             flags: InteractiveFlag.all & ~InteractiveFlag.rotate,
           ),
@@ -132,7 +173,6 @@ class _SharedRoutePageState extends State<SharedRoutePage> {
             urlTemplate: "https://tile.openstreetmap.org/{z}/{x}/{y}.png",
             tileProvider: CancellableNetworkTileProvider(),
           ),
-          // Display the route polylines.
           if (_routeAlternatives.isNotEmpty)
             PolylineLayer(
               polylines: _routeAlternatives.map((route) {
@@ -146,62 +186,66 @@ class _SharedRoutePageState extends State<SharedRoutePage> {
                 );
               }).toList(),
             ),
-          // Markers for start and end points.
           MarkerLayer(
             markers: [
-              Marker(
-                point: _startMarker!,
-                width: 40,
-                height: 40,
-                child: Icon(
-                  Icons.location_pin,
-                  color: Colors.red,
-                  size: 40,
+              if (_startMarker != null)
+                Marker(
+                  point: _startMarker!,
+                  width: 50,
+                  height: 50,
+                  child: _avatarUrl != null
+                      ? CircleAvatar(
+                    backgroundImage: NetworkImage(_avatarUrl!),
+                    radius: 20,
+                  )
+                      : Icon(Icons.flag, color: Colors.red),
                 ),
-              ),
-              Marker(
-                point: _endMarker!,
-                width: 40,
-                height: 40,
-                child: Icon(
-                  Icons.location_pin,
-                  color: Colors.blue,
-                  size: 40,
+              if (_endMarker != null)
+                Marker(
+                  point: _endMarker!,
+                  width: 40,
+                  height: 40,
+                  child: Icon(Icons.flag, color: Colors.green),
                 ),
-              ),
+              if (_liveMarker != null)
+                Marker(
+                  point: _liveMarker!,
+                  width: 60,
+                  height: 60,
+                  child: AnimatedContainer(
+                    duration: Duration(milliseconds: 400),
+                    curve: Curves.easeInOut,
+                    child: Icon(Icons.directions_walk, color: Colors.blue, size: 40),
+                  ),
+                ),
             ],
           ),
         ],
       ),
-      // Add floating action buttons for Zoom In/Out
-      floatingActionButton: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          // Zoom In
-          FloatingActionButton(
-            heroTag: "zoomIn",
-            mini: false, // or true for a smaller button
-            onPressed: () {
-              final currentZoom = _mapController.zoom;
-              // Increase zoom by 1, or clamp if needed
-              _mapController.move(_mapController.center, currentZoom + 1);
-            },
-            child: Icon(Icons.add),
-          ),
-          SizedBox(height: 8),
-          // Zoom Out
-          FloatingActionButton(
-            heroTag: "zoomOut",
-            mini: false,
-            onPressed: () {
-              final currentZoom = _mapController.zoom;
-              // Decrease zoom by 1, or clamp if needed
-              _mapController.move(_mapController.center, currentZoom - 1);
-            },
-            child: Icon(Icons.remove),
-          ),
-        ],
-      ),
+      bottomNavigationBar: _progress != null
+          ? Container(
+        padding: EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Theme.of(context).cardColor,
+          border: Border(top: BorderSide(color: Colors.grey.shade300)),
+          boxShadow: [BoxShadow(blurRadius: 6, color: Colors.black12)],
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            LinearProgressIndicator(
+              value: _progress!.clamp(0.0, 100.0) / 100.0,
+              minHeight: 8,
+              backgroundColor: Colors.grey.shade200,
+              valueColor: AlwaysStoppedAnimation<Color>(Colors.blue),
+            ),
+            SizedBox(height: 6),
+            Text("Progress: ${_progress!.toStringAsFixed(1)}%",
+                style: TextStyle(fontWeight: FontWeight.w500)),
+          ],
+        ),
+      )
+          : null,
     );
   }
 }
