@@ -68,12 +68,18 @@ class _CreatePostWidgetState extends State<CreatePostWidget> {
                   onPressed: _isSubmitting ? null : _createPost,
                   icon: _isSubmitting
                       ? const CircularProgressIndicator()
-                      : const Icon(Icons.send),
-                  label: const Text('Post'),
+                      : const Icon(Icons.send, color: Colors.blue,),
+                  label: const Text('Post' , style: TextStyle(color: Colors.blue)),
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.blue, // Background color
+                    backgroundColor: Colors.white, // Background color
                     foregroundColor: Colors.white, // Text and icon color
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      side: BorderSide(
+                        color: Colors.blue,  // Border color
+                        width: 1,  // Border width
+                      ),
+                    ),
                     padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
                   ),
                 ),

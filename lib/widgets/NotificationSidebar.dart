@@ -340,7 +340,7 @@ class _NotificationSidebarState extends State<NotificationSidebar> {
           if (!notif.isRead)
             Padding(
               padding: const EdgeInsets.only(left: 8.0, top: 4),
-              child: CircleAvatar(radius: 4, backgroundColor: Colors.blueAccent),
+              child: CircleAvatar(radius: 4, backgroundColor: Colors.blue),
             ),
         ],
       ),

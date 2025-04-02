@@ -439,10 +439,21 @@ class _ProfilePageState extends State<ProfilePage> {
 
         if (_isOwnProfile) ...[
           ElevatedButton.icon(
-            icon: const Icon(Icons.edit, size: 18),
-            label: const Text('Edit Profile'),
+            icon: const Icon(Icons.edit, size: 18, color: Colors.blue,),
+            label: const Text('Edit Profile', style: TextStyle(color: Colors.blue,)),
             onPressed: _showEditProfileDialog,
-            style: ElevatedButton.styleFrom(minimumSize: const Size(150, 36)),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.white, // Background color
+              foregroundColor: Colors.white, // Text and icon color
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(8),
+                side: BorderSide(
+                  color: Colors.blue,  // Border color
+                  width: 1,  // Border width
+                ),
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+            ),
           ),
           const SizedBox(height: 8),
           TextButton.icon(
