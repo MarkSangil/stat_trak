@@ -30,53 +30,57 @@ class MyCustomAppBar extends StatelessWidget implements PreferredSizeWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      color: const Color(0xFF1E6091),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          colors: [Color(0xFF2196F3), Color(0xFF2196F3)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
       child: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 8.0),
+          padding: const EdgeInsets.symmetric(horizontal: 16.0),
           child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
             children: [
               // Left side icons
-              IconButton(
-                icon: Image.asset(
-                  "assets/icons/Home.png",
-                  color: Colors.lightBlue[200],
-                ),
-                onPressed: () {
-                  Navigator.push(context,
-                  MaterialPageRoute(builder: (context) => DashboardPage()),
-                );},
+              _buildAppBarButton(
+                context,
+                "assets/icons/Home.png",
+                Colors.white,
+                    () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (context) => DashboardPage()),
+                  );
+                },
               ),
-              IconButton(
-                icon: Image.asset(
-                  "assets/icons/Map.png",
-                  color: Colors.black,
-                ),
-                onPressed: () {
-                  Navigator.push(context,
+              _buildAppBarButton(
+                context,
+                "assets/icons/Map.png",
+                Colors.white,
+                    () {
+                  Navigator.push(
+                    context,
                     MaterialPageRoute(builder: (context) => MapPage()),
                   );
                 },
               ),
-              IconButton(
-                icon: Image.asset(
-                  "assets/icons/Events.png",
-                  color: Colors.black,
-                ),
-                onPressed: () {},
-              ),
-              const Spacer(),
 
               // Right side icons
-              IconButton(
-                icon: Image.asset("assets/icons/Friends.png", color: Colors.black),
-                onPressed: () {
+              _buildAppBarButton(
+                context,
+                "assets/icons/Friends.png",
+                Colors.white,
+                    () {
                   showDialog(
                     context: context,
                     builder: (_) => Dialog(
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(16),
+                      ),
                       child: SizedBox(
-                        width: 400,  // set fixed width
+                        width: 400, // set fixed width
                         height: 500, // or use MediaQuery
                         child: FriendsModal(
                           currentUserId: Supabase.instance.client.auth.currentUser!.id,
@@ -86,29 +90,25 @@ class MyCustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                       ),
                     ),
                   );
-
                 },
               ),
-
-              IconButton(
-                icon: Image.asset(
-                  "assets/icons/Group.png",
-                  color: Colors.white,
-                ),
-                onPressed: onGroupPressed,
+              _buildAppBarButton(
+                context,
+                "assets/icons/Group.png",
+                Colors.white,
+                onGroupPressed,
+              ),
+              _buildAppBarButton(
+                context,
+                "assets/icons/Notification.png",
+                Colors.white,
+                onNotificationPressed,
               ),
 
-              IconButton(
-                icon: Image.asset(
-                  "assets/icons/Notification.png",
-                  color: Colors.white,
-                ),
-                onPressed: onNotificationPressed,
-              ),
-              (avatarUrl != null && avatarUrl!.isNotEmpty)
+              // Profile Avatar (with conditional fallback)
+              avatarUrl != null && avatarUrl!.isNotEmpty
                   ? GestureDetector(
                 onTap: () {
-                  // Navigate to ProfilePage
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -120,17 +120,16 @@ class MyCustomAppBar extends StatelessWidget implements PreferredSizeWidget {
                   );
                 },
                 child: CircleAvatar(
-                  radius: 16,
+                  radius: 10,
                   backgroundImage: NetworkImage(avatarUrl!),
                   backgroundColor: Colors.grey[200],
                 ),
               )
-                  : IconButton(
-                icon: Image.asset(
-                  "assets/icons/Profile.png",
-                  color: Colors.white,
-                ),
-                onPressed: () {
+                  : _buildAppBarButton(
+                context,
+                "assets/icons/Profile.png",
+                Colors.white,
+                    () {
                   Navigator.push(
                     context,
                     MaterialPageRoute(
@@ -146,6 +145,20 @@ class MyCustomAppBar extends StatelessWidget implements PreferredSizeWidget {
           ),
         ),
       ),
+    );
+  }
+
+  Widget _buildAppBarButton(BuildContext context, String assetPath, Color color, VoidCallback onPressed) {
+    return IconButton(
+      icon: Image.asset(
+        assetPath,
+        color: color,
+        width: 24,  // standardize icon size
+        height: 24,
+      ),
+      padding: EdgeInsets.zero,  // removes padding around the button
+      splashRadius: 20,  // adds a small splash area for touch feedback
+      onPressed: onPressed,
     );
   }
 }

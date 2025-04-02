@@ -5,9 +5,6 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:stattrak/models/Post.dart';
 import 'package:stattrak/providers/post_provider.dart';
 
-
-
-
 class CreatePostWidget extends StatefulWidget {
   const CreatePostWidget({Key? key}) : super(key: key);
 
@@ -21,33 +18,74 @@ class _CreatePostWidgetState extends State<CreatePostWidget> {
 
   @override
   Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        TextField(
-          controller: _postController,
-          decoration: const InputDecoration(
-            hintText: "What's on your mind?",
-          ),
-          maxLines: null,
-        ),
-        const SizedBox(height: 8),
+    return Card(
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+      elevation: 4,
+      margin: const EdgeInsets.all(12),
+      child: Padding(
+        padding: const EdgeInsets.all(16),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            TextField(
+              controller: _postController,
+              decoration: InputDecoration(
+                hintText: "What's on your mind?",
+                enabledBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: Colors.grey, width: 1.0),
+                ),
+                focusedBorder: OutlineInputBorder(
+                  borderRadius: BorderRadius.circular(10),
+                  borderSide: const BorderSide(color: Colors.blue, width: 2.0),
+                ),
+                contentPadding: const EdgeInsets.all(12),
+              ),
+              maxLines: null,
+            ),
+            const SizedBox(height: 12),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                ElevatedButton.icon(
+                  onPressed: _isSubmitting ? null : _pickAndUploadImage,
+                  icon: const Icon(Icons.image, color: Colors.blue,),
+                  label: const Text('Upload Image', style: TextStyle(color: Colors.blue)),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.white, // Background color
+                    foregroundColor: Colors.white, // Text and icon color
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(8),
+                      side: BorderSide(
+                        color: Colors.blue,  // Border color
+                        width: 1,  // Border width
+                      ),
+                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  ),
+                ),
+                ElevatedButton.icon(
+                  onPressed: _isSubmitting ? null : _createPost,
+                  icon: _isSubmitting
+                      ? const CircularProgressIndicator()
+                      : const Icon(Icons.send),
+                  label: const Text('Post'),
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: Colors.blue, // Background color
+                    foregroundColor: Colors.white, // Text and icon color
+                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                  ),
+                ),
 
-        ElevatedButton(
-          onPressed: _isSubmitting ? null : _createPost,
-          child: const Text('Post'),
+              ],
+            ),
+          ],
         ),
-        const SizedBox(height: 8),
-
-        ElevatedButton(
-          onPressed: _isSubmitting ? null : _pickAndUploadImage,
-          child: const Text('Upload Image'),
-        ),
-      ],
+      ),
     );
   }
 
-  /// Inserts a text-only post into the `posts` table
   Future<void> _createPost() async {
     final supabase = Supabase.instance.client;
     final user = supabase.auth.currentUser;
@@ -64,16 +102,14 @@ class _CreatePostWidgetState extends State<CreatePostWidget> {
         'content': content,
       }).select();
 
-      // Grab inserted post data
       final insertedPost = response.first;
 
-      // Add to local provider
       final postProvider = context.read<PostProvider>();
       postProvider.addPost(
         Post(
           username: user.userMetadata?['full_name'] ?? 'Unknown',
           date: DateTime.now(),
-          location: 'Bulacan', // or fetch user location if available
+          location: 'Bulacan',
           title: content,
           distance: 0.0,
           elevation: 0.0,
@@ -81,7 +117,6 @@ class _CreatePostWidgetState extends State<CreatePostWidget> {
           likes: 0,
         ),
       );
-
       _postController.clear();
     } catch (error) {
       debugPrint('Error creating post: $error');
@@ -90,17 +125,13 @@ class _CreatePostWidgetState extends State<CreatePostWidget> {
     }
   }
 
-  /// Uploads an image to Supabase Storage, then inserts a new post record
-  /// with BOTH the user-entered text and the image URL.
   Future<void> _pickAndUploadImage() async {
     final supabase = Supabase.instance.client;
     final user = supabase.auth.currentUser;
     if (user == null) return;
 
-    // CHANGED: Grab the text from the controller
     final content = _postController.text.trim();
     if (content.isEmpty) {
-      // If you want to allow empty text, remove this check
       debugPrint("No text entered!");
       return;
     }
@@ -114,17 +145,13 @@ class _CreatePostWidgetState extends State<CreatePostWidget> {
       final fileBytes = await pickedFile.readAsBytes();
       final fileName = '${DateTime.now().millisecondsSinceEpoch}_${pickedFile.name}';
 
-      await supabase.storage
-          .from('post-images')
-          .uploadBinary(
+      await supabase.storage.from('post-images').uploadBinary(
         fileName,
         fileBytes,
         fileOptions: FileOptions(cacheControl: '3600', upsert: false),
       );
 
-      final imageUrl = supabase.storage
-          .from('post-images')
-          .getPublicUrl(fileName);
+      final imageUrl = supabase.storage.from('post-images').getPublicUrl(fileName);
 
       final response = await supabase.from('posts').insert({
         'user_id': user.id,
@@ -145,9 +172,7 @@ class _CreatePostWidgetState extends State<CreatePostWidget> {
           likes: 0,
         ),
       );
-
       _postController.clear();
-
     } catch (e) {
       debugPrint('Upload error: $e');
     } finally {
