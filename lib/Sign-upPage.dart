@@ -1,9 +1,8 @@
 import 'package:flutter/material.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
-import 'package:stattrak/map_page.dart';
 import 'package:provider/provider.dart';
-import 'providers/SupabaseProvider.dart';
 import 'package:stattrak/login_page.dart';
+import 'package:stattrak/map_page.dart';
+import 'providers/SupabaseProvider.dart';
 
 class SignUpPage extends StatefulWidget {
   const SignUpPage({Key? key}) : super(key: key);
@@ -16,6 +15,7 @@ class _SignUpPageState extends State<SignUpPage> {
   final _formKey = GlobalKey<FormState>();
   final _nameController = TextEditingController();
   final _emailController = TextEditingController();
+  final _phoneController = TextEditingController(); // <-- New
   final _passwordController = TextEditingController();
   final _confirmPasswordController = TextEditingController();
 
@@ -33,13 +33,13 @@ class _SignUpPageState extends State<SignUpPage> {
         email: _emailController.text,
         password: _passwordController.text,
         name: _nameController.text,
+        phone: _phoneController.text, // <-- Pass phone
       );
 
       if (user == null) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
-            content: Text(
-                'Please check your email to confirm your account or try again.'),
+            content: Text('Please check your email to confirm your account or try again.'),
           ),
         );
         return;
@@ -62,15 +62,11 @@ class _SignUpPageState extends State<SignUpPage> {
       body: Stack(
         children: [
           Positioned.fill(
-            child: Image.asset(
-              'icons/signup.jpg',
-              fit: BoxFit.cover,
-            ),
+            child: Image.asset('assets/icons/signup.jpg', fit: BoxFit.cover),
           ),
           LayoutBuilder(
             builder: (context, constraints) {
-              final screenWidth = constraints.maxWidth;
-              final isLargeScreen = screenWidth > 800;
+              final isLargeScreen = constraints.maxWidth > 800;
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
@@ -80,7 +76,7 @@ class _SignUpPageState extends State<SignUpPage> {
                       padding: const EdgeInsets.symmetric(vertical: 40),
                       child: isLargeScreen
                           ? _buildLargeScreenContent(context)
-                          : _buildSmallScreenContent(context, isLargeScreen),
+                          : _buildSmallScreenContent(context),
                     ),
                   ),
                   _buildFooterText(),
@@ -99,7 +95,6 @@ class _SignUpPageState extends State<SignUpPage> {
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.spaceBetween,
-        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Text(
             'STATTRAK',
@@ -109,24 +104,16 @@ class _SignUpPageState extends State<SignUpPage> {
               color: Colors.blue,
             ),
           ),
-          SizedBox(
-            width: 120,
-            height: 42,
-            child: ElevatedButton(
-              style: ElevatedButton.styleFrom(
-                backgroundColor: const Color(0xFF2196F3),
-                foregroundColor: Colors.blue,
-              ),
-              onPressed: () {
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (context) => const LoginPage()),
-                );
-              },
-              child: const Text(
-                'Log In',
-                style: TextStyle(fontFamily: 'DMMono', fontSize: 16, color: Colors.white),
-              ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.push(
+                context,
+                MaterialPageRoute(builder: (context) => const LoginPage()),
+              );
+            },
+            child: const Text(
+              'Log In',
+              style: TextStyle(fontFamily: 'DMMono', color: Colors.white),
             ),
           ),
         ],
@@ -160,25 +147,20 @@ class _SignUpPageState extends State<SignUpPage> {
     );
   }
 
-  Widget _buildSmallScreenContent(BuildContext context, bool isLargeScreen) {
+  Widget _buildSmallScreenContent(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 20),
       child: Column(
-        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
-          if (!isLargeScreen)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 20),
-              child: Text(
-                'A WEB-BASED INFORMATION FOR CYCLISTS THAT’S EASY AND FREE',
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontFamily: 'RubikMonoOne',
-                  fontSize: 24,
-                  color: Colors.white,
-                ),
-              ),
+          Text(
+            'A WEB-BASED INFORMATION FOR CYCLISTS THAT’S EASY AND FREE',
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontFamily: 'RubikMonoOne',
+              fontSize: 24,
+              color: Colors.white,
             ),
+          ),
           _buildForm(context),
         ],
       ),
@@ -199,94 +181,67 @@ class _SignUpPageState extends State<SignUpPage> {
           children: [
             _buildTextField(controller: _nameController, label: 'Name'),
             _buildTextField(controller: _emailController, label: 'Email', keyboardType: TextInputType.emailAddress),
+            _buildTextField(controller: _phoneController, label: 'Phone Number', keyboardType: TextInputType.phone),
             _buildTextField(controller: _passwordController, label: 'Password', obscureText: true),
             _buildTextField(controller: _confirmPasswordController, label: 'Confirm Password', obscureText: true),
             const SizedBox(height: 24),
             ElevatedButton(
-              style: ElevatedButton.styleFrom(backgroundColor: const Color(
-                  0xFF2196F3)),
               onPressed: _handleSignUp,
-              child: const Text('Sign Up', style: TextStyle(fontSize: 20,  color: Colors.white)),
+              child: const Text('Sign Up', style: TextStyle(fontSize: 20)),
             ),
           ],
         ),
       ),
     );
   }
-}
 
-
-Widget _buildTextField({
-  required TextEditingController controller,
-  required String label,
-  bool obscureText = false,
-  TextInputType keyboardType = TextInputType.text,
-  String? Function(String?)? validator,
-}) {
-  return TextFormField(
-    controller: controller,
-    obscureText: obscureText,
-    keyboardType: keyboardType,
-    validator: validator ??
-            (value) {
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String label,
+    bool obscureText = false,
+    TextInputType keyboardType = TextInputType.text,
+  }) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      child: TextFormField(
+        controller: controller,
+        obscureText: obscureText,
+        keyboardType: keyboardType,
+        validator: (value) {
           if (value == null || value.isEmpty) {
             return 'Please enter your $label';
           }
           return null;
         },
-    decoration: InputDecoration(
-      labelText: label,
-      labelStyle: const TextStyle(
-        fontFamily: 'DMMono',
-        fontSize: 20,
-      ),
-      border: const OutlineInputBorder(
-        borderRadius: BorderRadius.zero,
-      ),
-    ),
-    style: const TextStyle(
-      fontFamily: 'DMMono',
-      fontSize: 20,
-    ),
-  );
-}
-
-// Extracted Footer Widget
-Widget _buildFooterText() {
-  return Center(
-    child: RichText(
-      textAlign: TextAlign.center,
-      text: const TextSpan(
-        style: TextStyle(
-          fontFamily: 'Dangrek',
-          fontSize: 14,
-          color: Colors.black,
-          height: 2.3,
+        decoration: InputDecoration(
+          labelText: label,
+          border: const OutlineInputBorder(),
         ),
-        children: [
-          TextSpan(
-            text: 'By signing up for Stattrak, you agree to the ',
-          ),
-          TextSpan(
-            text: 'Terms of Service',
-            style: TextStyle(
-              color: Colors.blue,
-              decoration: TextDecoration.underline,
-            ),
-          ),
-          TextSpan(text: '. View our '),
-          TextSpan(
-            text: 'Privacy Policy',
-            style: const TextStyle(
-              color: Colors.blue,
-              decoration: TextDecoration.underline,
-            ),
-          ),
-          TextSpan(text: '.'),
-        ],
       ),
-    ),
-  );
+    );
+  }
+
+  Widget _buildFooterText() {
+    return Center(
+      child: RichText(
+        textAlign: TextAlign.center,
+        text: const TextSpan(
+          style: TextStyle(fontFamily: 'Dangrek', fontSize: 14, color: Colors.black, height: 2.3),
+          children: [
+            TextSpan(text: 'By signing up for Stattrak, you agree to the '),
+            TextSpan(
+              text: 'Terms of Service',
+              style: TextStyle(color: Colors.blue, decoration: TextDecoration.underline),
+            ),
+            TextSpan(text: '. View our '),
+            TextSpan(
+              text: 'Privacy Policy',
+              style: TextStyle(color: Colors.blue, decoration: TextDecoration.underline),
+            ),
+            TextSpan(text: '.'),
+          ],
+        ),
+      ),
+    );
+  }
 }
-
-
