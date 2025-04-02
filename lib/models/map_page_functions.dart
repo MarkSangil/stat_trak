@@ -549,7 +549,6 @@ Future<LatLng?> getHighAccuracyLocation(Function(String)? showErrorMessage) asyn
   } catch (e) {
     if (e is TimeoutException) {
       print("Location request timed out.");
-      // *** CHANGE HERE ***
       if (!kIsWeb) { // Only try last known on non-web platforms
         print("Trying with last known position.");
         try {
@@ -569,7 +568,7 @@ Future<LatLng?> getHighAccuracyLocation(Function(String)? showErrorMessage) asyn
       // *** END CHANGE ***
     }
     print("Error getting high accuracy location: $e");
-    showErrorMessage?.call("Location error. Ensure GPS/Location is enabled."); // Modified message
+    // showErrorMessage?.call("Location error. Ensure GPS/Location is enabled."); // Modified message
     return null;
   }
 }
@@ -704,6 +703,23 @@ SegmentProjection _pointToLineSegmentDistance(LatLng point, LatLng lineStart, La
 
   return SegmentProjection(distance, t);
 }
+
+double calculateNearestDistanceToRoute({
+  required LatLng currentLocation,
+  required List<LatLng> routePoints,
+}) {
+  double minDistance = double.infinity;
+  for (int i = 0; i < routePoints.length - 1; i++) {
+    final segmentStart = routePoints[i];
+    final segmentEnd = routePoints[i + 1];
+    final result = _pointToLineSegmentDistance(currentLocation, segmentStart, segmentEnd);
+    if (result.distance < minDistance) {
+      minDistance = result.distance;
+    }
+  }
+  return minDistance;
+}
+
 
 /// For better backend sync - with error fallback
 Future<void> syncProgressWithSupabase({

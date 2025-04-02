@@ -4,6 +4,7 @@ import 'package:flutter_map/flutter_map.dart';
 import 'package:flutter_map_cancellable_tile_provider/flutter_map_cancellable_tile_provider.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:latlong2/latlong.dart';
+import 'package:stattrak/utils/Smsservice.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'models/map_page_functions.dart' as mf;
 
@@ -164,6 +165,32 @@ class _RouteTrackingPageState extends State<RouteTrackingPage> {
       setState(() {
         _selectedFriendId = friend['id'];
       });
+
+      // ✅ Fetch friend's phone number from Supabase
+      final profile = await Supabase.instance.client
+          .from('profiles')
+          .select('phone, full_name')
+          .eq('id', friend['id'])
+          .maybeSingle();
+
+      final phoneNumber = profile?['phone'];
+      final fullName = profile?['full_name'] ?? friend['username'];
+
+      if (phoneNumber != null && phoneNumber.toString().isNotEmpty) {
+        final message = "Hi $fullName! Your friend just shared a live route with you on StaTrak 🚴. Check the app for updates.";
+
+        try {
+          await SmsService.sendSms(
+            number: phoneNumber.toString(),
+            message: message,
+          );
+          _showSuccessSnackbar("SMS sent to $fullName");
+        } catch (e) {
+          _showErrorSnackbar("Failed to send SMS: $e");
+        }
+      } else {
+        _showErrorSnackbar("No phone number found for $fullName");
+      }
     }
   }
 
@@ -231,7 +258,7 @@ class _RouteTrackingPageState extends State<RouteTrackingPage> {
     }
   }
 
-  void _handleLocationUpdate(LatLng newLocation) {
+  Future<void> _handleLocationUpdate(LatLng newLocation) async {
     if (!mounted) return;
 
     final bool hasLocationChanged = _trackingState.userLocation == null ||
@@ -259,8 +286,67 @@ class _RouteTrackingPageState extends State<RouteTrackingPage> {
         mf.moveToLocation(mapController, newLocation, zoomLevel);
       }
 
+      final nearestDistance = mf.calculateNearestDistanceToRoute(
+        currentLocation: newLocation,
+        routePoints: widget.selectedRoute.points,
+      );
+
+// Customize your threshold
+      if (nearestDistance > 50 && !_trackingState.isCompleted) {
+        print("⚠️ Possible detour detected.");
+
+        if (_selectedFriendId != null) {
+          final profile = await Supabase.instance.client
+              .from('profiles')
+              .select('phone, full_name')
+              .eq('id', _selectedFriendId!)
+              .maybeSingle();
+
+          final phoneNumber = profile?['phone'];
+          final fullName = profile?['full_name'] ?? "Your friend";
+
+          if (phoneNumber != null && phoneNumber.toString().isNotEmpty) {
+            final username = Supabase.instance.client.auth.currentUser?.userMetadata?['full_name'] ?? 'A friend';
+            final message = SmsService.routeDetourMessage(username, "a shared route");
+
+            try {
+              await SmsService.sendSms(number: phoneNumber.toString(), message: message);
+              _showSuccessSnackbar("SMS sent: Possible detour.");
+            } catch (e) {
+              _showErrorSnackbar("Failed to send detour SMS.");
+            }
+          }
+        }
+      }
+
       if (isCompleted && !_trackingState.isCompleted) {
         _showSuccessSnackbar("Route completed!");
+
+        // 📤 Send SMS to friend
+        if (_selectedFriendId != null) {
+          final profile = await Supabase.instance.client
+              .from('profiles')
+              .select('phone, full_name')
+              .eq('id', _selectedFriendId!)
+              .maybeSingle();
+
+          final phoneNumber = profile?['phone'];
+          final fullName = profile?['full_name'] ?? "Your friend";
+
+          if (phoneNumber != null && phoneNumber.toString().isNotEmpty) {
+            final username = Supabase.instance.client.auth.currentUser?.userMetadata?['full_name'] ?? 'A friend';
+            final message = SmsService.routeCompletedMessage(username, "a shared route");
+
+            try {
+              await SmsService.sendSms(number: phoneNumber.toString(), message: message);
+              _showSuccessSnackbar("SMS sent: Route completed.");
+            } catch (e) {
+              _showErrorSnackbar("Failed to send route completion SMS.");
+            }
+          }
+        }
+
+        // Cancel timers/subscriptions
         _locationSubscription?.pause();
         _periodicUpdateTimer?.cancel();
         _backendSyncTimer?.cancel();

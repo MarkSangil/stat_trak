@@ -34,6 +34,7 @@ class SupabaseProvider with ChangeNotifier {
     required String email,
     required String password,
     required String name,
+    required String phone,
   }) async {
     if (!isInitialized) {
       throw Exception('SupabaseProvider not initialized.');
@@ -42,6 +43,7 @@ class SupabaseProvider with ChangeNotifier {
     final response = await _client.auth.signUp(
       email: email,
       password: password,
+
     );
 
     final user = response.user;
@@ -60,6 +62,7 @@ class SupabaseProvider with ChangeNotifier {
       await _client.from('profiles').insert({
         'id': user.id,
         'full_name': name,
+        'phone': phone,
       });
       return user;
     } catch (error) {

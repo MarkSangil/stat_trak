@@ -6,6 +6,7 @@ import 'package:flutter_dotenv/flutter_dotenv.dart';
 import 'package:flutter_typeahead/flutter_typeahead.dart';
 import 'package:flutter_map_cancellable_tile_provider/flutter_map_cancellable_tile_provider.dart';
 import 'package:stattrak/RouteTrackingPage.dart' show RouteTrackingPage;
+import 'package:stattrak/utils/Smsservice.dart';
 // Import logic functions
 import 'models/map_page_functions.dart' as mf;
 import 'package:stattrak/weather_service.dart';
@@ -110,14 +111,13 @@ class _MapPageState extends State<MapPage> {
 
   // --- UI Dialog ---
   void showDetailedForecastDialog(OneCallForecast forecast) {
-    // (Keep implementation as before, maybe add Theme styling)
     if (!mounted) return;
     showDialog(
       context: context,
       builder: (context) {
         return AlertDialog(
           title: Text("Detailed Forecast"),
-          content: SingleChildScrollView( /* ... content ... */ ),
+          content: SingleChildScrollView(),
           actions: [ TextButton(onPressed: () => Navigator.of(context).pop(), child: Text("Close")) ],
         );
       },
@@ -141,6 +141,44 @@ class _MapPageState extends State<MapPage> {
       ),
     );
   }
+
+  Future<void> notifyFriendOfSharedRoute({
+    required String friendUserId,
+    required double lat,
+    required double lng,
+  }) async {
+    final supabase = Supabase.instance.client;
+    final currentUser = supabase.auth.currentUser;
+
+    if (currentUser == null) return;
+
+    try {
+      final userProfile = await supabase
+          .from('profiles')
+          .select('full_name')
+          .eq('id', currentUser.id)
+          .single();
+
+      final friendProfile = await supabase
+          .from('profiles')
+          .select('phone')
+          .eq('id', friendUserId)
+          .single();
+
+      final String? phone = friendProfile['phone'];
+      final String name = userProfile['full_name'];
+
+      if (phone != null && phone.isNotEmpty) {
+        final message = SmsService.locationShareMessage(name, lat, lng);
+        await SmsService.sendSms(number: phone, message: message);
+      } else {
+        print("❗ Friend has no phone number.");
+      }
+    } catch (e) {
+      print("❌ Error sending SMS: $e");
+    }
+  }
+
 
   // --- Build Method ---
   @override

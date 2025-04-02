@@ -13,6 +13,7 @@ class EditProfilePage extends StatefulWidget {
   final List<String> featuredPhotos;
   final double? latitude;
   final double? longitude;
+  final String? phoneNumber;
 
   const EditProfilePage({
     Key? key,
@@ -26,6 +27,7 @@ class EditProfilePage extends StatefulWidget {
     this.featuredPhotos = const [],
     this.latitude,
     this.longitude,
+    this.phoneNumber,
   }) : super(key: key);
 
   @override
@@ -49,6 +51,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
   bool _isLoading = false;
   double? _latitude;
   double? _longitude;
+  final _phoneController = TextEditingController();
 
   @override
   void initState() {
@@ -65,6 +68,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
     _featuredPhotos = List.from(widget.featuredPhotos);
     _latitude = widget.latitude;
     _longitude = widget.longitude;
+    _phoneController.text = widget.phoneNumber ?? '';
+
   }
 
   @override
@@ -76,6 +81,8 @@ class _EditProfilePageState extends State<EditProfilePage> {
     _youtubeLink1Controller.dispose();
     _youtubeLink2Controller.dispose();
     _youtubeLink3Controller.dispose();
+    _phoneController.dispose();
+
     super.dispose();
   }
 
@@ -179,6 +186,7 @@ class _EditProfilePageState extends State<EditProfilePage> {
         'youtube_link2': _youtubeLink2Controller.text,
         'youtube_link3': _youtubeLink3Controller.text,
         'featured_photos': _featuredPhotos,
+        'phone': _phoneController.text,
         'updated_at': DateTime.now().toIso8601String(),
       };
 
@@ -356,6 +364,17 @@ class _EditProfilePageState extends State<EditProfilePage> {
               decoration: const InputDecoration(
                 labelText: 'Username',
                 border: OutlineInputBorder(),
+              ),
+            ),
+            const SizedBox(height: 12),
+
+            TextField(
+              controller: _phoneController,
+              keyboardType: TextInputType.phone,
+              decoration: const InputDecoration(
+                labelText: 'Phone Number',
+                border: OutlineInputBorder(),
+                hintText: 'e.g. 09XXXXXXXXX',
               ),
             ),
             const SizedBox(height: 12),
